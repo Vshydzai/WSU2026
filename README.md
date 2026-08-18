@@ -1,68 +1,38 @@
-# DevOps Course Project – AWS DevOps Web Crawler
+# WebHealth Application
 
 ## Project Overview
 
-In this project, students will use Infrastructure as Code (IaC) principles to build and operate a cloud-native web application across AWS environments.
+WebHealth is an AWS monitoring application developed for COMP2029 DevOps.
 
-The project focuses on:
+The application:
+- Uses AWS Lambda to monitor websites
+- Reads websites from a custom JSON list
+- Measures website availability and latency
+- Runs every 30 minutes using EventBridge
+- Publishes metrics to Amazon CloudWatch using Boto3
+- Uses a CloudWatch Dashboard and alarms for monitoring
 
-- Building a RESTful Python application on AWS
-- Using AWS Cloud Development Kit (CDK) for infrastructure deployment
-- Managing source code with GitHub
-- Implementing CI/CD pipelines for automated deployments
-- Writing automated unit and integration tests
-- Monitoring applications using CloudWatch
-- Automating rollback procedures based on operational metrics
-- Deploying and managing serverless applications using AWS services
+## Monitored Websites
 
-### Technologies Used
+The website list is stored in:
 
-- AWS CDK
+`lambda_src/sites.json`
+
+Current websites:
+- Western Sydney University
+- Example.com
+
+## AWS Services Used
+
 - AWS Lambda
+- Amazon EventBridge
 - Amazon CloudWatch
-- Amazon DynamoDB
-- Amazon API Gateway
-- Amazon SNS
-- Amazon S3
-- AWS CodePipeline
-- AWS CodeDeploy
-- AWS Cloud9
-- GitHub
-- Python
+- AWS IAM
+- AWS CDK
 
----
+## Cleanup
 
-# Weekly Project Plan
+After completing project work for the day, destroy the infrastructure:
 
-## Week 1 – Project Setup
-
-### Activities
-
-- Introduction to the project
-- AWS CDK setup
-- GitHub account and dashboard setup
-- Repository cloning and environment preparation
-
-### Learning Objectives
-
-- Understand project requirements and architecture
-- Configure development tools
-- Set up source control workflows using GitHub
-
----
-
-
-
-# Overall Expected Learning Outcomes
-
-By the end of this project, students will be able to:
-
-- Apply DevOps practices in real-world cloud environments
-- Use Infrastructure as Code with AWS CDK
-- Develop serverless applications using AWS Lambda
-- Build automated CI/CD pipelines
-- Implement monitoring, alerting, and operational dashboards
-- Write and execute automated tests
-- Design and deploy RESTful APIs
-- Manage cloud infrastructure and applications using GitHub and AWS services
-- Implement automated rollback and reliability mechanisms
+```bash
+cdk destroy
