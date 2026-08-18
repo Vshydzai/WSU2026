@@ -2,6 +2,7 @@ from aws_cdk import (
     Stack,
     RemovalPolicy,
     RemovalPolicies,
+    aws_cloudwatch as cloudwatch,
     Duration,
     aws_lambda as _lambda,
     aws_iam as iam,
@@ -44,6 +45,80 @@ class VshydzaiStack(Stack):
 
         schedule.add_target(
             targets.LambdaFunction(webhealth_function)
+        )
+
+        availability_wsu = cloudwatch.Metric(
+            namespace="WebHealth",
+            metric_name="Availability",
+            dimensions_map={"Website": "WSU"},
+            period=Duration.minutes(30),
+            statistic="Minimum"
+        )
+
+        latency_wsu = cloudwatch.Metric(
+            namespace="WebHealth",
+            metric_name="Latency",
+            dimensions_map={"Website": "WSU"},
+            period=Duration.minutes(30),
+            statistic="Average"
+        )
+
+        availability_example = cloudwatch.Metric(
+            namespace="WebHealth",
+            metric_name="Availability",
+            dimensions_map={"Website": "Example"},
+            period=Duration.minutes(30),
+            statistic="Minimum"
+        )
+
+        latency_example = cloudwatch.Metric(
+            namespace="WebHealth",
+            metric_name="Latency",
+            dimensions_map={"Website": "Example"},
+            period=Duration.minutes(30),
+            statistic="Average"
+        )
+
+        dashboard = cloudwatch.Dashboard(
+            self,
+            "WebHealthDashboard",
+            dashboard_name="WebHealth-Dashboard"
+        )
+
+        dashboard.add_widgets(
+            cloudwatch.GraphWidget(
+                title="Website Availability",
+                left=[
+                    availability_wsu,
+                    availability_example
+                ]
+            ),
+
+            cloudwatch.GraphWidget(
+                title="Website Latency",
+                left=[
+                    latency_wsu,
+                    latency_example
+                ]
+            )
+        )
+
+        cloudwatch.Alarm(
+            self,
+            "WSUAvailabilityAlarm",
+            metric=availability_wsu,
+            threshold=1,
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD
+        )
+
+        cloudwatch.Alarm(
+            self,
+            "WSULatencyAlarm",
+            metric=latency_wsu,
+            threshold=3000,
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
         )
 
         RemovalPolicies.of(self).destroy()
