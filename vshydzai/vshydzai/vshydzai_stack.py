@@ -13,9 +13,9 @@ class VshydzaiStack(Stack):
 
         hello_function = _lambda.Function(
             self,
-            "HelloWorldFunction",
+            "WebHealthFunction",
             runtime=_lambda.Runtime.PYTHON_3_12,
-            handler="hello.lambda_handler",
+            handler="webhealth.lambda_handler",
             code=_lambda.Code.from_asset("lambda_src"),
         )
 
