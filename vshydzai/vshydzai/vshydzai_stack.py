@@ -1,9 +1,8 @@
 from aws_cdk import (
     Stack,
     RemovalPolicy,
-    RemovalPolicies,
-    aws_cloudwatch as cloudwatch,
     Duration,
+    aws_cloudwatch as cloudwatch,
     aws_lambda as _lambda,
     aws_iam as iam,
     aws_events as events,
@@ -18,6 +17,11 @@ class VshydzaiStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+
+        # -------------------------
+        # Lambda Function
+        # -------------------------
+
         webhealth_function = _lambda.Function(
             self,
             "WebHealthFunction",
@@ -26,14 +30,28 @@ class VshydzaiStack(Stack):
             code=_lambda.Code.from_asset("lambda_src"),
         )
 
-        webhealth_function.apply_removal_policy(RemovalPolicy.DESTROY)
+        webhealth_function.apply_removal_policy(
+            RemovalPolicy.DESTROY
+        )
+
+
+        # Permission to publish CloudWatch metrics
 
         webhealth_function.add_to_role_policy(
             iam.PolicyStatement(
-                actions=["cloudwatch:PutMetricData"],
-                resources=["*"]
+                actions=[
+                    "cloudwatch:PutMetricData"
+                ],
+                resources=[
+                    "*"
+                ]
             )
         )
+
+
+        # -------------------------
+        # EventBridge Schedule
+        # -------------------------
 
         schedule = events.Rule(
             self,
@@ -47,37 +65,69 @@ class VshydzaiStack(Stack):
             targets.LambdaFunction(webhealth_function)
         )
 
+
+        # -------------------------
+        # CloudWatch Metrics
+        # -------------------------
+
         availability_wsu = cloudwatch.Metric(
             namespace="WebHealth",
             metric_name="Availability",
-            dimensions_map={"Website": "WSU"},
+            dimensions_map={
+                "Website": "WSU"
+            },
             period=Duration.minutes(30),
             statistic="Minimum"
         )
+
 
         latency_wsu = cloudwatch.Metric(
             namespace="WebHealth",
             metric_name="Latency",
-            dimensions_map={"Website": "WSU"},
+            dimensions_map={
+                "Website": "WSU"
+            },
             period=Duration.minutes(30),
             statistic="Average"
         )
+
+
+        status_wsu = cloudwatch.Metric(
+            namespace="WebHealth",
+            metric_name="StatusCode",
+            dimensions_map={
+                "Website": "WSU"
+            },
+            period=Duration.minutes(30),
+            statistic="Average"
+        )
+
 
         availability_example = cloudwatch.Metric(
             namespace="WebHealth",
             metric_name="Availability",
-            dimensions_map={"Website": "Example"},
+            dimensions_map={
+                "Website": "Example"
+            },
             period=Duration.minutes(30),
             statistic="Minimum"
         )
 
+
         latency_example = cloudwatch.Metric(
             namespace="WebHealth",
             metric_name="Latency",
-            dimensions_map={"Website": "Example"},
+            dimensions_map={
+                "Website": "Example"
+            },
             period=Duration.minutes(30),
             statistic="Average"
         )
+
+
+        # -------------------------
+        # CloudWatch Dashboard
+        # -------------------------
 
         dashboard = cloudwatch.Dashboard(
             self,
@@ -85,7 +135,9 @@ class VshydzaiStack(Stack):
             dashboard_name="WebHealth-Dashboard"
         )
 
+
         dashboard.add_widgets(
+
             cloudwatch.GraphWidget(
                 title="Website Availability",
                 left=[
@@ -100,8 +152,21 @@ class VshydzaiStack(Stack):
                     latency_wsu,
                     latency_example
                 ]
+            ),
+
+            cloudwatch.GraphWidget(
+                title="Website Status Code",
+                left=[
+                    status_wsu
+                ]
             )
+
         )
+
+
+        # -------------------------
+        # CloudWatch Alarms
+        # -------------------------
 
         cloudwatch.Alarm(
             self,
@@ -109,8 +174,10 @@ class VshydzaiStack(Stack):
             metric=availability_wsu,
             threshold=1,
             evaluation_periods=1,
-            comparison_operator=cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD
+            comparison_operator=
+            cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD
         )
+
 
         cloudwatch.Alarm(
             self,
@@ -118,7 +185,28 @@ class VshydzaiStack(Stack):
             metric=latency_wsu,
             threshold=3000,
             evaluation_periods=1,
-            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
+            comparison_operator=
+            cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
         )
 
-        RemovalPolicies.of(self).destroy()
+
+        cloudwatch.Alarm(
+            self,
+            "ExampleAvailabilityAlarm",
+            metric=availability_example,
+            threshold=1,
+            evaluation_periods=1,
+            comparison_operator=
+            cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD
+        )
+
+
+        cloudwatch.Alarm(
+            self,
+            "ExampleLatencyAlarm",
+            metric=latency_example,
+            threshold=3000,
+            evaluation_periods=1,
+            comparison_operator=
+            cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
+        )
