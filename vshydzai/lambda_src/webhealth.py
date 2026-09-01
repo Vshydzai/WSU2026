@@ -38,6 +38,7 @@ def check_website(url):
         return {
             "availability": 0,
             "latency_ms": latency,
+            "http_status": 0,
             "error": str(error)
         }
 
@@ -77,6 +78,17 @@ def lambda_handler(event, context):
                     ],
                     "Value": result["latency_ms"],
                     "Unit": "Milliseconds"
+                },
+                {
+                    "MetricName": "StatusCode",
+                    "Dimensions": [
+                        {
+                            "Name": "Website",
+                            "Value": site["name"]
+                        }
+                    ],
+                    "Value": result["http_status"],
+                    "Unit": "None"
                 }
             ]
         )
