@@ -3,10 +3,14 @@ from aws_cdk import (
     RemovalPolicy,
     Duration,
     aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cloudwatch_actions,
     aws_lambda as _lambda,
     aws_iam as iam,
     aws_events as events,
     aws_events_targets as targets,
+    aws_sns as sns,
+    aws_sns_subscriptions as subscriptions,
+    aws_dynamodb as dynamodb,
 )
 
 from constructs import Construct
@@ -165,10 +169,85 @@ class VshydzaiStack(Stack):
 
 
         # -------------------------
+        # SNS Notification Topic
+        # -------------------------
+
+        alarm_topic = sns.Topic(
+            self,
+            "WebHealthAlarmTopic",
+            display_name="Web Health Alarm Notifications"
+        )
+
+
+        alarm_topic.add_subscription(
+            subscriptions.EmailSubscription(
+                "vi16082006@gmail.com"
+            )
+        )
+
+        # -------------------------
+        # DynamoDB Alarm Logs
+        # -------------------------
+
+        alarm_table = dynamodb.Table(
+            self,
+            "AlarmLogsTable",
+
+            table_name="AlarmLogs",
+
+            partition_key=dynamodb.Attribute(
+                name="id",
+                type=dynamodb.AttributeType.STRING
+            ),
+
+            removal_policy=RemovalPolicy.DESTROY
+        )
+
+        # -------------------------
+        # Alarm Logger Lambda
+        # -------------------------
+
+        alarm_logger_function = _lambda.Function(
+            self,
+            "AlarmLoggerFunction",
+
+            runtime=_lambda.Runtime.PYTHON_3_12,
+
+            handler="alarm_logger.lambda_handler",
+
+            code=_lambda.Code.from_asset(
+                "lambda_src"
+            )
+        )
+
+        # Allow Alarm Logger Lambda to write to DynamoDB
+
+        alarm_logger_function.add_to_role_policy(
+            iam.PolicyStatement(
+
+                actions=[
+                    "dynamodb:PutItem"
+                ],
+
+                resources=[
+                    alarm_table.table_arn
+                ]
+            )
+        )
+
+        alarm_topic.add_subscription(
+            subscriptions.LambdaSubscription(
+                alarm_logger_function
+            )
+        )
+
+        # -------------------------
         # CloudWatch Alarms
         # -------------------------
 
-        cloudwatch.Alarm(
+        # WSU Availability Alarm
+
+        wsu_availability_alarm = cloudwatch.Alarm(
             self,
             "WSUAvailabilityAlarm",
             metric=availability_wsu,
@@ -178,8 +257,14 @@ class VshydzaiStack(Stack):
             cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD
         )
 
+        wsu_availability_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(alarm_topic)
+        )
 
-        cloudwatch.Alarm(
+
+        # WSU Latency Alarm
+
+        wsu_latency_alarm = cloudwatch.Alarm(
             self,
             "WSULatencyAlarm",
             metric=latency_wsu,
@@ -189,8 +274,14 @@ class VshydzaiStack(Stack):
             cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
         )
 
+        wsu_latency_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(alarm_topic)
+        )
 
-        cloudwatch.Alarm(
+
+        # Example Availability Alarm
+
+        example_availability_alarm = cloudwatch.Alarm(
             self,
             "ExampleAvailabilityAlarm",
             metric=availability_example,
@@ -200,8 +291,14 @@ class VshydzaiStack(Stack):
             cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD
         )
 
+        example_availability_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(alarm_topic)
+        )
 
-        cloudwatch.Alarm(
+
+        # Example Latency Alarm
+
+        example_latency_alarm = cloudwatch.Alarm(
             self,
             "ExampleLatencyAlarm",
             metric=latency_example,
@@ -209,4 +306,8 @@ class VshydzaiStack(Stack):
             evaluation_periods=1,
             comparison_operator=
             cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
+        )
+
+        example_latency_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(alarm_topic)
         )
