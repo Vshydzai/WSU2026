@@ -1,1 +1,7 @@
+-r requirements.txt
 pytest==8.4.2
+pytest-cov==7.0.0
+moto[dynamodb,sns]==5.1.18
+ruff==0.14.0
+PyYAML==6.0.3
+requests==2.34.2
