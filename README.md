@@ -1,394 +1,133 @@
-# WebHealth Application
+# WebHealth
 
-## Project Overview
+WebHealth is the COMP2029 DevOps applied project. A public REST API manages the list of websites in DynamoDB. A Python Lambda checks enabled websites every 30 minutes and records availability, latency and HTTP status. AWS CDK defines the infrastructure and a pipeline promotes one revision through Beta, Gamma and Prod.
 
-WebHealth is a serverless AWS monitoring application developed for COMP2029 DevOps. The purpose of this project is to automatically monitor the health of configured web resources by measuring website availability, response latency, and HTTP status codes.
+## Verification status
 
-The application uses AWS Lambda to perform website health checks, Amazon EventBridge to schedule automated executions, and Amazon CloudWatch to collect, visualise, and monitor custom metrics. CloudWatch alarms are configured to detect abnormal website conditions. When an alarm threshold is breached, Amazon SNS is used to notify subscribers and trigger an Alarm Logger Lambda function, which stores alarm information in Amazon DynamoDB for historical tracking.
+Local validation passes 57 tests: 43 unit/infrastructure tests and 14 functional tests, with 89.29% statement coverage of lambda_src. Three additional integration tests require a deployed AWS environment. [Local validation](docs/evidence/local-validation.json) records the checks actually run. Live API, pipeline, alarm, rollback and teardown evidence must come from AWS. [The evidence checklist](docs/EVIDENCE.md) tracks that work.
 
-The overall monitoring workflow is:
+## Architecture
 
+~~~mermaid
+flowchart TD
+    Client["API client"] --> API["API Gateway"]
+    API --> CRUD["CRUD Lambda: live alias"]
+    CRUD <--> Targets[("DynamoDB Targets")]
+    Schedule["EventBridge: 30 minutes"] --> Crawler["Crawler Lambda: live alias"]
+    Targets --> Crawler
+    Crawler --> CW["CloudWatch metrics and alarms"]
+    CW --> SNS["SNS"]
+    SNS --> Logger["Alarm logger"]
+    Logger --> History[("DynamoDB AlarmLogs")]
+~~~
 
-Website Resources
-|
-↓
-WebHealth Lambda
-|
-↓
-CloudWatch Metrics
-|
-↓
-CloudWatch Dashboard
-|
-↓
-CloudWatch Alarms
-|
-↓
-SNS Notification Service
-|
-↓
-Alarm Logger Lambda
-|
-↓
-DynamoDB AlarmLogs Table
+Each environment has its own API, tables, functions, dashboard and metric dimensions. The default deployment region is us-east-2. The API Gateway account logging role is shared within that account and region.
 
+## API
 
----
+| Method | Route | Result |
+| --- | --- | --- |
+| POST | /targets | Create a target, return 201 |
+| GET | /targets | List a page of targets |
+| GET | /targets/{id} | Read a target |
+| PUT | /targets/{id} | Replace editable fields |
+| DELETE | /targets/{id} | Delete a target, return 204 |
 
-# System Architecture
+Use name, url and an optional enabled boolean. The server generates IDs and timestamps. [API documentation](docs/API.md) and [OpenAPI](docs/openapi.yaml) contain the complete contract.
 
-The application contains two main workflows.
+## Local setup
 
-## Website Monitoring Workflow
+Install Python 3.12 and Node.js 22. From the repository root:
 
-Amazon EventBridge triggers the WebHealth Lambda function every 30 minutes. The Lambda function reads the configured websites from a JSON file, sends HTTP requests to each website, calculates availability and latency metrics, and publishes the results to Amazon CloudWatch.
+~~~bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r vshydzai/requirements-dev.txt
+npm ci
+cd vshydzai
+ruff check .
+pytest -m "not integration"
+cd ..
+~~~
 
+In PowerShell, create the environment with py -3.12 -m venv .venv and activate .\.venv\Scripts\Activate.ps1. The remaining Python and npm commands are the same.
 
-EventBridge
-|
-↓
-WebHealth Lambda
-|
-↓
-Website Health Check
-|
-↓
-CloudWatch Metrics
+## Deploy and test
 
+Use your own AWS session. Configure DEPLOY_ACCOUNT, DEPLOY_REGION and optionally NOTIFICATION_EMAIL. Set DEPLOY_ACCOUNT from aws sts get-caller-identity. No credentials belong in this repository.
 
-## Alarm Notification and Logging Workflow
+~~~bash
+export DEPLOY_ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
+export DEPLOY_REGION=us-east-2
+npx cdk bootstrap "aws://$DEPLOY_ACCOUNT/$DEPLOY_REGION"
+npm run synth
+npm run deploy:beta
+python vshydzai/scripts/seed_targets.py --stack WebHealth-beta
+python vshydzai/scripts/run_live_tests.py --stack WebHealth-beta
+python vshydzai/scripts/demo_crud.py --stack WebHealth-beta
+~~~
 
-CloudWatch alarms monitor the published metrics. When a threshold is breached, CloudWatch sends an alarm notification to Amazon SNS. SNS distributes the notification to email subscribers and invokes the Alarm Logger Lambda function. The Alarm Logger Lambda stores the alarm event in DynamoDB.
+See [the runbook](RUNBOOK.md) for PowerShell commands, pipeline setup and recovery. The seed script uses sites.json only to populate DynamoDB. The crawler's runtime source is DynamoDB.
 
+## CI/CD and recovery
 
-CloudWatch Alarm
-|
-↓
-SNS Topic
-/
-/
-Email Alarm Logger Lambda
-|
-↓
-DynamoDB
+GitHub Actions runs lint, local tests and synthesis on pushes and pull requests. The repository owner must configure the validate status check as required on main.
 
+AWS CodePipeline reads GitHub through a CodeConnections connection. CodeBuild runs the build tests. Beta and Gamma must pass live service tests before progression. Production requires approval, then its own live checks. A failed test command fails its action and stops progression.
 
----
+CodeDeploy shifts 10% of alias traffic for five minutes before completing a release. A pre-traffic hook invokes the candidate version. A bounded release-triggered worker sends synthetic checks through the live alias. That worker has no recurring schedule. Operational alarms can stop and roll back the deployment.
 
-# AWS Services Used
+After successful deployments, the release manager records the current and previous versions. Operational alarm events can restore the previous version after the release completes. It checks that the alarm is still active, that CodeDeploy has no active release, and that the alias still points to the recorded version. A revision guard prevents concurrent alias changes. Website unavailability and target latency of at least 3,000 ms produce alerts independently of software rollback.
 
-## AWS Lambda
+## Monitoring and quality
 
-Two Lambda functions are used in this project.
+CloudWatch displays website availability, latency and HTTP status, plus function invocations, errors, throttles, crawler run duration and DynamoDB SDK read/write times. Embedded Metric Format records these timings without a synchronous PutMetricData call.
 
-### WebHealthFunction
+Memory alarms use the Python process peak RSS divided by allocated memory. This measures the process, including imported modules, but does not represent the entire Lambda runtime. A Logs Insights widget reads the full Max Memory Used field from Lambda REPORT records.
 
-The WebHealthFunction is responsible for monitoring website health.
+The public demonstration API has throttling of five requests per second and a burst limit of ten. It has no per-user authorization. Target validation rejects malformed URLs and private IP literals. The crawler validates DNS results on every connection and redirect and pins the checked address while preserving HTTPS certificate verification. It checks at most 25 enabled targets using five workers. Requests have a three-second timeout; the crawler has a 90-second Lambda budget. Excess capacity fails visibly instead of silently dropping targets.
 
-Responsibilities:
+SNS alarm records use MessageId for retry deduplication and expire after 30 days. The course teardown removes the table sooner when a working session ends.
 
-- Read monitored websites from `sites.json`
-- Send HTTP requests to websites
-- Calculate website availability
-- Measure response latency
-- Publish custom metrics to CloudWatch
+## Repository
 
-### AlarmLoggerFunction
+| Path | Purpose |
+| --- | --- |
+| vshydzai/app.py | Select a direct environment or pipeline |
+| vshydzai/vshydzai/ | CDK application, stages, pipeline and removal policies |
+| vshydzai/lambda_src/ | API, repository, crawler, telemetry and release handlers |
+| vshydzai/tests/unit/ | Behaviour and infrastructure assertions |
+| vshydzai/tests/functional/ | Full application flows with mocked boundaries |
+| vshydzai/tests/integration/ | Deployed AWS checks |
+| vshydzai/scripts/ | Seed, demonstration, live tests and cleanup |
+| .github/workflows/ci.yml | Pull-request validation |
+| docs/ | API contract, report, demonstration and evidence |
 
-The AlarmLoggerFunction stores alarm events.
+## Daily teardown
 
-Responsibilities:
+Destroy project infrastructure after work. The application stacks created by the pipeline are separate CloudFormation stacks, so removing only the pipeline does not remove them.
 
-- Receive alarm notifications from SNS
-- Extract alarm information
-- Store alarm records in DynamoDB using the PutItem operation
+~~~bash
+python vshydzai/scripts/cleanup.py --execute
+~~~
 
----
+Add --include-legacy only when removing the earlier VshydzaiStack as well. Cleanup stops active pipeline executions, deletes known project stacks and verifies the functions, tables, logs and artifact buckets disappear. Old Lambda versions have an explicit retention policy for rollback between releases; deleting their parent function removes those versions.
 
-## Amazon EventBridge
+The imported CodeConnections connection and shared CDKToolkit bootstrap are external deployment prerequisites. Review those separately when the account is dedicated to this project.
 
-Amazon EventBridge is used to schedule the WebHealth Lambda execution.
+## Assessment materials
 
-The application uses a rate-based schedule:
+- [Project report](docs/PROJECT_REPORT.md)
+- [Testing map](docs/TESTING.md)
+- [Demonstration and Q&A](docs/DEMONSTRATION.md)
+- [GitHub Project setup](docs/GITHUB_PROJECT.md)
+- [Evidence checklist](docs/EVIDENCE.md)
+- [Architecture slides](docs/WebHealth_Architecture.pptx)
 
+## References
 
-rate(30 minutes)
-
-
-This allows automated website monitoring without requiring a continuously running server.
-
----
-
-## Amazon CloudWatch
-
-Amazon CloudWatch is used for metric collection, dashboard visualisation, and alarm monitoring.
-
-The application publishes custom metrics under the namespace:
-
-
-WebHealth
-
-
-The monitored metrics are:
-
-| Metric | Description |
-|---|---|
-| Availability | Indicates whether the website responded successfully |
-| Latency | Measures website response time in milliseconds |
-| StatusCode | Records HTTP response status codes |
-
-### Availability Metric
-
-Values:
-
-| Value | Meaning |
-|---|---|
-| 1 | Website available |
-| 0 | Website unavailable |
-
-### Latency Metric
-
-Latency measures the response time required for the website to respond.
-
-The metric uses milliseconds as the measurement unit.
-
-### StatusCode Metric
-
-The HTTP response status code is recorded to identify website response conditions.
-
-Examples:
-
-- 200: Successful response
-- 404: Resource not found
-- 500: Server error
-
----
-
-# CloudWatch Dashboard
-
-A CloudWatch Dashboard is created to provide visual monitoring of website health.
-
-Dashboard:
-
-
-WebHealth-Dashboard
-
-
-The dashboard displays:
-
-- Website availability
-- Website latency
-- Website HTTP status codes
-
-This allows users to observe website performance trends over time.
-
----
-
-# CloudWatch Alarms
-
-CloudWatch alarms are configured to monitor website conditions.
-
-## Availability Alarm
-
-Condition:
-
-
-Availability < 1
-
-
-This indicates that a monitored website is unavailable.
-
-## Latency Alarm
-
-Condition:
-
-
-Latency > 3000 milliseconds
-
-
-This indicates that the website response time exceeds the acceptable threshold.
-
-When an alarm enters the ALARM state, CloudWatch sends an event to SNS.
-
----
-
-# Amazon SNS Notification Service
-
-Amazon SNS is used as the notification layer between CloudWatch alarms and subscribers.
-
-SNS Topic:
-
-
-WebHealthAlarmTopic
-
-
-Subscribers:
-
-- Email notification
-- Alarm Logger Lambda
-
-The notification workflow:
-
-
-CloudWatch Alarm
-|
-↓
-SNS Topic
-|
-├── Email Notification
-|
-└── Alarm Logger Lambda
-
-
-SNS allows the system to support multiple notification destinations without changing the CloudWatch alarm configuration.
-
----
-
-# Amazon DynamoDB Alarm Logging
-
-Amazon DynamoDB is used to store historical alarm notifications.
-
-Table:
-
-
-AlarmLogs
-
-
-Primary Key:
-
-
-id
-
-
-Stored information includes:
-
-- Alarm ID
-- Alarm name
-- Alarm state
-- Alarm reason
-- Timestamp
-
-The Alarm Logger Lambda receives SNS messages and writes alarm records into DynamoDB.
-
----
-
-# Monitored Websites
-
-The monitored website list is stored in:
-
-
-lambda_src/sites.json
-
-
-Current monitored resources:
-
-- Western Sydney University
-- Example.com
-
-The JSON file allows additional websites to be added without modifying the Lambda function code.
-
-Example:
-
-```json
-[
-    {
-        "name": "WSU",
-        "url": "https://www.westernsydney.edu.au"
-    }
-]
-Repository Structure
-WebHealth
-│
-├── app.py
-├── vshydzai_stack.py
-├── cdk.json
-├── requirements.txt
-│
-└── lambda_src
-    │
-    ├── webhealth.py
-    ├── alarm_logger.py
-    └── sites.json
-
-File descriptions:
-
-File	Purpose
-app.py	CDK application entry point
-vshydzai_stack.py	Defines AWS infrastructure resources
-webhealth.py	Website monitoring Lambda function
-alarm_logger.py	Alarm notification logging Lambda function
-sites.json	Stores monitored website information
-Deployment Instructions
-
-Install required dependencies:
-
-pip install -r requirements.txt
-
-Configure AWS credentials:
-
-aws configure
-
-Generate the CloudFormation template:
-
-cdk synth
-
-Deploy the AWS infrastructure:
-
-cdk deploy
-Testing and Verification
-
-The application can be verified through the following steps:
-
-Infrastructure Validation
-
-Run:
-
-cdk synth
-
-This confirms that the CDK application can successfully generate the required AWS CloudFormation resources.
-
-AWS Resource Verification
-
-Confirm that the following resources exist:
-
-WebHealth Lambda
-AlarmLogger Lambda
-EventBridge schedule
-CloudWatch Dashboard
-CloudWatch Alarms
-SNS Topic
-DynamoDB AlarmLogs table
-Alarm Logging Test
-
-A test SNS event can be sent to the Alarm Logger Lambda.
-
-Expected result:
-
-A new record should appear in the DynamoDB AlarmLogs table.
-
-Cleanup
-
-To remove all AWS resources created by this project:
-
-cdk destroy
-References and Documentation
-
-AWS CDK Python API Reference:
-
-https://docs.aws.amazon.com/cdk/api/v2/python/
-
-AWS Lambda Documentation:
-
-https://docs.aws.amazon.com/lambda/
-
-Amazon CloudWatch Documentation:
-
-https://docs.aws.amazon.com/cloudwatch/
-
-Amazon SNS Documentation:
-
-https://docs.aws.amazon.com/sns/
-
-Amazon DynamoDB Documentation:
-
-https://docs.aws.amazon.com/dynamodb/
+- [API Gateway, Lambda and DynamoDB](https://docs.aws.amazon.com/lambda/latest/dg/services-apigateway-tutorial.html)
+- [CDK Pipelines](https://docs.aws.amazon.com/cdk/v2/guide/cdk-pipeline.html)
+- [CodeDeploy Lambda deployments](https://docs.aws.amazon.com/cdk/api/v2/python/aws_cdk.aws_codedeploy/LambdaDeploymentGroup.html)
+- [Lambda metrics](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-metrics-types.html)
+- [Removal policies](https://docs.aws.amazon.com/cdk/api/v2/python/aws_cdk/RemovalPolicy.html)
