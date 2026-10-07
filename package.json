@@ -1,0 +1,11 @@
+{
+  "name": "webhealth-course-project",
+  "private": true,
+  "scripts": {
+    "synth": "cd vshydzai && cdk synth",
+    "synth:pipeline": "cd vshydzai && cdk synth -c mode=pipeline",
+    "deploy:beta": "cd vshydzai && cdk deploy -c environment=beta",
+    "deploy:pipeline": "cd vshydzai && cdk deploy -c mode=pipeline"
+  },
+  "devDependencies": {"aws-cdk": "2.1128.0"}
+}

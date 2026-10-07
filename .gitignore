@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Generated validation output and local deployment settings
+node_modules/
+cdk.out/
+.synth*/
+test-results/
+.coverage
+htmlcov/
+.env.live

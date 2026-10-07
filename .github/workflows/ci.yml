@@ -1,0 +1,51 @@
+name: Validate WebHealth
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: webhealth-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_EC2_METADATA_DISABLED: "true"
+      DEPLOY_ACCOUNT: "111111111111"
+      DEPLOY_REGION: us-east-2
+      CDK_DISABLE_CLI_TELEMETRY: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: python -m pip install -r vshydzai/requirements-dev.txt
+      - name: Lint
+        run: ruff check vshydzai
+      - name: Local tests and infrastructure assertions
+        working-directory: vshydzai
+        run: pytest -m "not integration" --cov=lambda_src --cov-report=term-missing --junitxml=test-results/local.xml
+      - name: Synthesize all environments
+        run: |
+          npm run synth -- -c environment=beta --quiet --no-lookups
+          npm run synth -- -c environment=gamma --quiet --no-lookups
+          npm run synth -- -c environment=prod --quiet --no-lookups
+      - name: Synthesize the three-stage pipeline
+        env:
+          CONNECTION_ARN: arn:aws:codestar-connections:us-east-2:111111111111:connection/00000000-0000-0000-0000-000000000000
+        run: npm run synth:pipeline -- --quiet --no-lookups
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: webhealth-test-results
+          path: vshydzai/test-results/*.xml
