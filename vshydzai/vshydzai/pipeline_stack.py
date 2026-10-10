@@ -50,7 +50,8 @@ class WebHealthPipeline(Stack):
                 "BuildAndTest", input=source,
                 install_commands=["npm ci", "python3 -m pip install -r vshydzai/requirements-dev.txt"],
                 commands=["cd vshydzai", "ruff check .",
-                          "pytest -m 'not integration' --junitxml=test-results/local.xml",
+                          "pytest -m 'not integration' --cov=lambda_src --cov=scripts --cov-fail-under=85 "
+                          "--junitxml=test-results/local.xml",
                           "cd ..", "npm run synth:pipeline"],
                 env={"CONNECTION_ARN": connection_arn,
                      "DEPLOY_ACCOUNT": self.account, "DEPLOY_REGION": self.region,
@@ -63,7 +64,7 @@ class WebHealthPipeline(Stack):
             api_test = pipelines.CodeBuildStep(
                 f"{environment.capitalize()}Tests", input=source,
                 install_commands=["python3 -m pip install -r vshydzai/requirements-dev.txt"],
-                commands=["cd vshydzai", "pytest -m integration --run-live "
+                commands=["cd vshydzai", "pytest -m integration --run-live -o junit_family=legacy "
                           f"--junitxml=test-results/{environment}.xml"],
                 env_from_cfn_outputs={
                     "API_URL": app.api_url_output, "TARGETS_TABLE_NAME": app.targets_output,

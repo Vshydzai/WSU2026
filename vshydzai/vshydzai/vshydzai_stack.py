@@ -134,10 +134,11 @@ class VshydzaiStack(Stack):
         for worker in (hook, traffic):
             worker.add_to_role_policy(iam.PolicyStatement(actions=["codedeploy:GetDeployment"], resources=["*"]))
         for target in (self.crawler, self.api_function):
-            hook.add_to_role_policy(iam.PolicyStatement(actions=["lambda:InvokeFunction"],
-                                                       resources=[target.function_arn + ":*"]))
-        self.crawler_alias.grant_invoke(traffic)
-        self.api_alias.grant_invoke(traffic)
+            for worker in (hook, traffic):
+                worker.add_to_role_policy(iam.PolicyStatement(actions=["lambda:InvokeFunction"],
+                                                              resources=[target.function_arn + ":*"]))
+            traffic.add_to_role_policy(iam.PolicyStatement(actions=["lambda:GetAlias"],
+                resources=[target.function_arn, target.function_arn + ":live"]))
 
         alarms, alarm_map, group_map = [], {}, {}
         dimensions = {"Environment": environment}
@@ -252,6 +253,7 @@ class VshydzaiStack(Stack):
         self.api_url_output = CfnOutput(self, "ApiUrl", value=self.api.url)
         self.targets_output = CfnOutput(self, "TargetsTable", value=self.targets_table.table_name)
         self.crawler_output = CfnOutput(self, "CrawlerFunction", value=self.crawler.function_name)
+        CfnOutput(self, "ApiFunction", value=self.api_function.function_name)
         self.alarm_topic_output = CfnOutput(self, "AlarmTopicArn", value=topic.topic_arn)
         self.alarm_table_output = CfnOutput(self, "AlarmTable", value=self.alarm_table.table_name)
         CfnOutput(self, "ReleaseTable", value=release_table.table_name)
