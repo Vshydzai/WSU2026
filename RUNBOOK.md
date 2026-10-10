@@ -22,6 +22,8 @@ $env:AWS_DEFAULT_REGION = "us-east-2"
 
 Optional NOTIFICATION_EMAIL adds SNS email subscriptions. Confirm each subscription through the email SNS sends.
 
+Run `python vshydzai/scripts/preflight.py --identity-only` after setting the account and region. It checks the active session against your intended account without creating AWS resources. Account checks also apply to the seed, demonstration, live-test runner, evidence and cleanup commands. Never set `DEPLOY_ACCOUNT` to an account you do not intend to operate in.
+
 ## First direct Beta deployment
 
 From the repository root, with the Python virtual environment active:
@@ -30,6 +32,7 @@ From the repository root, with the Python virtual environment active:
 npm ci
 python -m pip install -r vshydzai/requirements-dev.txt
 npx cdk bootstrap "aws://$DEPLOY_ACCOUNT/$DEPLOY_REGION"
+python vshydzai/scripts/preflight.py --output vshydzai/test-results/preflight.json
 npm run synth
 npm run deploy:beta
 python vshydzai/scripts/seed_targets.py --stack WebHealth-beta
@@ -48,12 +51,15 @@ The original VshydzaiStack is a separate legacy stack. Its hardcoded AlarmLogs t
 
 ~~~bash
 export CONNECTION_ARN="your-available-connection-arn"
-export SOURCE_BRANCH=feature/crawler-crud-pipeline
+export SOURCE_BRANCH=main
+python vshydzai/scripts/preflight.py --pipeline --output vshydzai/test-results/pipeline-preflight.json
 npm run synth:pipeline
 npm run deploy:pipeline
 ~~~
 
-Use main as SOURCE_BRANCH after the implementation merges. The synth step preserves the selected source branch and notification address during self-mutation.
+PR #51 is merged, so `main` is the normal source branch. Use a controlled feature branch only when deliberately testing a candidate revision. The synth step preserves the selected source branch and notification address during self-mutation. A preflight pass confirms readable prerequisites, not all IAM permissions or repository authorization.
+
+PowerShell pipeline setup uses `$env:CONNECTION_ARN = "your-available-connection-arn"` and `$env:SOURCE_BRANCH = "main"`. The Python and npm commands are the same. For bootstrap, use `npx cdk bootstrap "aws://$($env:DEPLOY_ACCOUNT)/$($env:DEPLOY_REGION)"`.
 
 The first pipeline deployment establishes the pipeline, shared API Gateway logging role and artifact bucket. Subsequent pipeline runs deploy WebHealth-beta, WebHealth-gamma and WebHealth-prod. Beta and Gamma have post-deployment integration blockers. Production includes an approval action and its own tests.
 
@@ -73,6 +79,8 @@ aws lambda invoke --function-name WebHealth-beta-Crawler --qualifier live --payl
 ~~~
 
 The result should show target IDs that exist in DynamoDB. Enabled targets participate; disabled targets do not. The live test creates its own enabled target and removes it afterwards.
+
+The crawler integration check now requires a successful HTTP response from its `https://example.com/` target. A failed network request is no longer accepted as a successful crawl. External DNS/network/site failures will block promotion and need investigation. The runner writes separate `live-WebHealth-beta.xml`, `live-WebHealth-gamma.xml` and `live-WebHealth-prod.xml` reports so later stages do not overwrite earlier evidence. SDK timing properties use the compatible JUnit family.
 
 ## Operational dashboard
 
@@ -97,7 +105,7 @@ aws lambda get-alias --function-name WebHealth-beta-Crawler --name live
 npm run deploy:beta -- -c fault_injection=true
 ~~~
 
-The pre-traffic hook performs a read-only candidate check. The release traffic worker invokes the live alias with synthetic canary checks. The injected candidate then raises a genuine Lambda error. CodeDeploy health alarms can stop the release and return traffic to the old version. The deployment command is expected to report a failed release.
+The pre-traffic hook performs a read-only candidate check. The release worker waits until the alias routes to this candidate, then invokes both the candidate version and the live alias with synthetic canary checks. The injected candidate raises a genuine Lambda error even if the live request hits the healthy old version. `DeploymentProbeFailures` records that failure. CodeDeploy health alarms can stop the release and return traffic to the old version. The deployment command is expected to report a failed release.
 
 Collect the CodeDeploy deployment ID/status, alarm history, alias versions before/after and a recovered crawler result. Reset the fault setting through the next deployment:
 
@@ -105,9 +113,24 @@ Collect the CodeDeploy deployment ID/status, alarm history, alias versions befor
 npm run deploy:beta
 ~~~
 
-Rollback after a completed release uses ReleaseState and ReleaseManager. On an operational ALARM event, the handler rechecks the current alarm, waits for CodeDeploy ownership by refusing to compete with an active deployment, and verifies the alias/current-version match. It restores the previous version with a RevisionId guard. Repeated events do not move an already restored alias again.
+Rollback after a completed release uses ReleaseState and ReleaseManager. On an operational ALARM event, the handler rechecks the current alarm, refuses to compete with an active deployment, and verifies the alias/current-version match. It restores the previous version with a RevisionId guard. An alias revision race produces a safe skip. A conditional history update does not overwrite a newer version pair. Repeated events do not move an already restored alias again. These read-and-update checks are not an atomic lock across CodeDeploy, Lambda and DynamoDB; avoid concurrent manual releases during the exercise.
 
 Retained code versions remain available while the parent function exists. The process preserves code/configuration versions and target data. After operational rollback, fix the release and redeploy through the normal pipeline to reconcile the CloudFormation alias configuration.
+
+## Save observed AWS evidence
+
+From the repository root, before/after the rollback exercise and before teardown:
+
+~~~bash
+python vshydzai/scripts/collect_evidence.py --stack WebHealth-beta --output vshydzai/test-results/beta-before.json
+python vshydzai/scripts/collect_evidence.py --stack WebHealth-beta --output vshydzai/test-results/beta-after.json
+~~~
+
+Run the commands at the corresponding times; two immediate snapshots do not prove recovery. Repeat for Gamma and Prod after their stage tests. Use `--hours 6` when the exercise spans more than the default two hours.
+
+The collector is read-only: it does not invoke Lambda, set alarm states, change aliases or start deployments. It saves stack inventory, live aliases, release history, recent CodeDeploy/pipeline state, alarm transitions and SDK timing/memory metrics. `observed` means the read succeeded, not that the resource is healthy. `no_data` means no metric samples. Missing permissions produce a partial receipt and exit code 1; a blocking account/stack error exits 2. A direct Beta deployment without a pipeline normally has an unavailable pipeline section. Preserve that limitation rather than describing a partial snapshot as a full pipeline result.
+
+Receipts and JUnit files are ignored by git under `test-results`. Review them before attaching to submission evidence; they can include AWS account/resource identifiers. Never commit AWS credentials or the raw function environment. See [operator tools](docs/OPERATIONS.md) for exact scope and permissions.
 
 ## Troubleshooting
 
@@ -133,6 +156,8 @@ python vshydzai/scripts/cleanup.py --execute
 ~~~
 
 Use --include-legacy when the original VshydzaiStack also needs removal. The script targets named project stacks rather than arbitrary account resources.
+
+Preview does not delete anything and has `verified: false`. `--execute` checks your account, inventories all allowlisted stacks before deletion, waits for pipeline actions to stop, and checkpoints `vshydzai/test-results/cleanup.json` after each deleted stack. Deletion uses the inventoried stack ID. A permissions error, an unfinished action or a failed stack-delete waiter stops the process. A 403 response is not treated as proof that a bucket disappeared. Review `deletion_requests` and `deleted_stacks` if the session is interrupted; do not describe an incomplete receipt as successful teardown.
 
 The pipeline stack has an artifact bucket with automatic object deletion. Application log groups and tables use explicit destruction policies. Function versions use explicit retention between releases and disappear when their parent function is deleted. Confirm the cleanup command's verification result in addition to CloudFormation deletion status.
 

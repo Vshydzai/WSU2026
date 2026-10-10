@@ -5,7 +5,7 @@
 ~~~bash
 cd vshydzai
 ruff check .
-pytest -m "not integration" --cov=lambda_src --cov-report=term-missing --junitxml=test-results/local.xml
+pytest -m "not integration" --cov=lambda_src --cov=scripts --cov-fail-under=85 --cov-report=term-missing --cov-report=json:test-results/coverage.json --junitxml=test-results/local.xml
 ~~~
 
 Local functional tests use Moto for DynamoDB and mock HTTP transport. They exercise complete handlers and persistence flows without deploying AWS or crawling real websites.
@@ -20,8 +20,11 @@ Local functional tests use Moto for DynamoDB and mock HTTP transport. They exerc
 | 1 CRUD integration test | Public CRUD with direct DynamoDB verification and measured SDK read/write time |
 | Additional infrastructure tests | Routes, permissions, cadence, runtime budget, aliases, removal policies and pipeline blockers |
 | Additional release tests | Hook success/failure, completed-release state, alarm recovery, active deployment, duplicate events and safe rollback |
+| Release hardening | Published-version/AppSpec validation, deterministic candidate checks, alias routing readiness, SDK failures, budget limits, millisecond ordering and conditional history updates |
+| Operator unit tests | Account guard, connection prerequisites, pagination, fail-closed cleanup, HTTP status contracts and per-environment test reports |
+| Operator functional tests | Full preflight/evidence/cleanup command flows with AWS boundaries mocked; no live resources are created or deleted |
 
-[Local-validation receipt](evidence/local-validation.json) lists the observed results.
+[Latest local-validation receipt](evidence/operational-readiness-validation.json) lists the observed results. The previous PR's [receipt](evidence/local-validation.json) remains as historical evidence. Coverage now includes both `lambda_src` and `scripts`, so its percentage has a different scope from the earlier Lambda-only result. GitHub Actions and the CodePipeline build both fail below 85% combined statement coverage.
 
 ## Live checks
 
@@ -34,6 +37,8 @@ The script reads actual URLs/resource names from CloudFormation. Use the Gamma/P
 Without --run-live, integration tests are skipped. With --run-live, missing configuration causes failure. The tests do not silently pass when no deployment exists.
 
 Live tests remove only their own target and benchmark records. SNS test records are labelled test events and removed afterwards. SDK read/write times are recorded as JUnit properties. A performance budget can be supplied through DYNAMODB_LATENCY_BUDGET_MS.
+
+The crawler test requires HTTP 200–399, availability 1 and positive measured latency for the API-created Example target. Status 0 is a transport failure, not a passing integration result. Reports from the runner are named per environment and use the legacy JUnit family to retain timing properties compatibly.
 
 ## Test blockers
 

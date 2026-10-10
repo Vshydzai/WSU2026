@@ -46,9 +46,9 @@ CloudWatch receives website metrics and operational measurements through Embedde
 
 The function measures Python process peak RSS and memory utilization. The dashboard's REPORT query exposes Lambda's full runtime Max Memory Used. These measurements have different boundaries and are labelled accordingly.
 
-CodeDeploy uses a five-minute, ten-percent canary shift. A pre-traffic hook checks the candidate version. A bounded event-driven worker generates alias traffic during the deployment, allowing operational errors to appear even though routine checks occur only every 30 minutes.
+CodeDeploy uses a five-minute, ten-percent canary shift. A pre-traffic hook checks the candidate version. A bounded event-driven worker waits for candidate alias routing, then checks the candidate directly and the live alias. Candidate detection therefore does not depend on a small sample reaching the ten-percent route. SDK/response failures emit probe failure metrics, and remaining-time checks bound the worker without changing the 30-minute crawler schedule.
 
-Deployment alarms can stop and roll back an active release. After success, ReleaseManager stores the version pair. A later operational alarm can restore the prior version if the alarm remains active, no CodeDeploy deployment is running and the alias still matches the recorded current version. RevisionId guards and alias checks prevent competing or repeated updates. Successful CodeDeploy rollback events do not record the failed version as a future recovery target.
+Deployment alarms can stop and roll back an active release. After success, ReleaseManager stores the version pair with millisecond completion ordering and rejects older/duplicate events. A later operational alarm can restore the prior version if the alarm remains active, no CodeDeploy deployment is running and the alias still matches the recorded current version. RevisionId guards reject stale alias updates; conditional writes preserve concurrently changed history. These controls reduce races but are not a distributed lock between services. Successful CodeDeploy rollback events do not record the failed version as a future recovery target.
 
 ## Testing
 
@@ -63,6 +63,8 @@ The local validation receipt records observed results. AWS stage reports and scr
 The runbook supplies deployment, seed, demonstration, troubleshooting and rollback procedures. Daily teardown deletes the pipeline and separate application stacks. The artifact bucket deletes objects automatically. Tables and logs use destruction policies. Lambda versions retain their code between releases; deleting the parent function removes its versions during teardown.
 
 The cleanup script verifies project functions, tables, log groups and artifact buckets disappear. Shared CDK bootstrap resources and the imported connection are external prerequisites and require separate account-level review.
+
+The operational follow-up adds a strict intended-account check, read-only bootstrap/connection preflight, read-only evidence snapshots and checkpointed teardown receipts. Cleanup uses inventoried stack IDs, paginates execution/log checks, waits without abandoning active actions, and stops on permission or verification failures. Preview receipts and incomplete deletion receipts are not reported as successful teardown. Operator tests mock AWS boundaries; they are not evidence of actual account deletion or deployment permission.
 
 ## Demonstration and technical contribution
 
