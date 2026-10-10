@@ -1,0 +1,83 @@
+{
+  "recorded_at_utc": "2026-10-07T11:52:34.661584+00:00",
+  "repository": "Vshydzai/WSU2026",
+  "branch": "feature/crawler-crud-pipeline",
+  "base_commit": "76242b1c51f3dbc7dba2fd17b1094a137bbbbcb3",
+  "python_version": "3.12.14",
+  "cdk_cli_version": "2.1128.0",
+  "cdk_library_version": "2.263.0",
+  "local_tests": {
+    "command": "pytest -m \"not integration\" --cov=lambda_src --cov-report=term-missing --junitxml=test-results/local.xml",
+    "passed": 57,
+    "unit_and_infrastructure": 43,
+    "functional": 14,
+    "integration_deselected": 3,
+    "elapsed_seconds": 10.927
+  },
+  "coverage": {
+    "scope": "lambda_src (including retained legacy hello.py)",
+    "statement_percent": 89.29,
+    "statements": 439,
+    "covered": 392
+  },
+  "lint": "ruff check vshydzai: passed",
+  "synthesis": {
+    "beta": {
+      "result": "passed",
+      "no_lookups": true,
+      "deployment_performed": false
+    },
+    "gamma": {
+      "result": "passed",
+      "no_lookups": true,
+      "deployment_performed": false
+    },
+    "prod": {
+      "result": "passed",
+      "no_lookups": true,
+      "deployment_performed": false
+    },
+    "three-stage pipeline": {
+      "result": "passed",
+      "no_lookups": true,
+      "deployment_performed": false
+    }
+  },
+  "live_aws_tests": "Not run; no AWS credentials in this execution environment.",
+  "live_deployment_alarm_rollback_teardown": "Not observed. Collect actual AWS evidence before submission.",
+  "source_sha256": {
+    ".github/workflows/ci.yml": "900f2f649b5277eb9b2f8a50e56db8b1ac410af7f48fdaa54caf2be4261e2d4c",
+    "package-lock.json": "7d5e5034c96305efd25b11eb5b11f37ad46388b29103a31fb402a4f22d9b0937",
+    "package.json": "20ac9f5b86a0dfb82579563f12acd5f6a2e86cc61937f08cca6534c48939a35a",
+    "vshydzai/README.md": "cf2ea76d6098d32f3a6f2997fff347fe07ab22a68dc112a68601d82c482f272c",
+    "vshydzai/app.py": "22f61b1a0efaf9ec61b37229688108aba0723825343aa48dc82ab0f4b92f6800",
+    "vshydzai/lambda_src/alarm_logger.py": "f0aba4119dce793c90d22e0ea797c9bfde571fdcd2a539511bb8d3f8f6aa95cd",
+    "vshydzai/lambda_src/canary_traffic.py": "05e0b995ceffa17b42e977deaa0900768f89e3f78ecb6519cd62a0d74e920c30",
+    "vshydzai/lambda_src/deployment_hook.py": "2d964e1f630783d91b5fecf0b1204487aade58e75296e40837b189f840006362",
+    "vshydzai/lambda_src/release_manager.py": "8f94810d50564556d6a14517c425763e37cca6414cec0f8c3f0cc61f4132f516",
+    "vshydzai/lambda_src/target_repository.py": "2b24e1c7b1c84f9d9954ffaa810d0417ad327dd981266c62e8a3e5fb3e192df3",
+    "vshydzai/lambda_src/targets_api.py": "9e5e3f47bfba9e1b72b0aada3187360ad209bc1e996f1f6d3f1ee37706f79762",
+    "vshydzai/lambda_src/telemetry.py": "2f48c6a3e766387def6c218a79fc8f3b6b9de9c30d98c3619c1797aa582ddddf",
+    "vshydzai/lambda_src/validation.py": "127f3ef1937b01c0195076b54fa99c1abe893242f704cf3d50f4a48faa03b03e",
+    "vshydzai/lambda_src/webhealth.py": "f592d1bb1ace3509d13a78fdaf4fe8b4ff23732c86e6699f4f5567c9e0794aac",
+    "vshydzai/pyproject.toml": "938b0605c6618251fcb05ba0e2d8be09e3a7e2a0f8ae7fa487c73083ae564c66",
+    "vshydzai/requirements-dev.txt": "c60edd30ca17ca98f586e038a1e9e88b3f8243e97957ce50034ad79fd19022c5",
+    "vshydzai/requirements.txt": "d4fded8dbc0bd93c124721604d6499b96e76ab3dc0d5463919505159ed932b2b",
+    "vshydzai/scripts/cleanup.py": "ba26fcbe011f11bbdc1f7edc0e58b767c7b2e6bcebbb60595823c00c47a90cb4",
+    "vshydzai/scripts/demo_crud.py": "7afc251a130502c9c628a24a13e73569a1d700b290bfeeab2277a0d6e6f90524",
+    "vshydzai/scripts/environment.py": "d3f7d6760226093259c37f9a7bfd8ce765af46b8c82a64b532f4a73234c0e74f",
+    "vshydzai/scripts/run_live_tests.py": "b9275088507427c91b1714f5ce11ca15e23298de4479784229f9ca405dd2930a",
+    "vshydzai/scripts/seed_targets.py": "f5692c4b4c0db2f2581e7c95bce023e13aee1acd8c86a7a6915629772ebe05eb",
+    "vshydzai/tests/conftest.py": "a39b9f1d0b3457c05c65bb1c4b782b3a912098d0401c2ab75ce50a38d790f3e2",
+    "vshydzai/tests/functional/test_application.py": "1465436bbb227dd384f9beff6b5b528c867c13b25a25451b7231cc6d6d97e468",
+    "vshydzai/tests/integration/test_live.py": "29fcb4834525a9386d3caa6074f1da5b5fedc12d252e356b5f9be4792424e21d",
+    "vshydzai/tests/unit/test_crawler.py": "9a5c33e3acf447ea9ac07333d5062fcdd120a84a93aebe5a45e02f829d4fe293",
+    "vshydzai/tests/unit/test_crud.py": "0c240e2801d851e58a2f26c0c9fb64715c704dae7bb7be751ea964a23d1d0a8f",
+    "vshydzai/tests/unit/test_deployment.py": "7fd6a86409129c867f0222fde15a39efd104e2f746b12f248c99b47693d82c87",
+    "vshydzai/tests/unit/test_vshydzai_stack.py": "4beb8fa042c65380176e12483428e16db855cdd801f6957258d36d70cb7103d6",
+    "vshydzai/vshydzai/application_stage.py": "2223d06eaef8d12ae4609bc6d484d388776f33cabd0bc3fc906d25e2e81ac166",
+    "vshydzai/vshydzai/pipeline_stack.py": "691f2f2ec242a5eaabdfdae3a94ebadb3f33c3c9c5676ad0691c847ef60f0e82",
+    "vshydzai/vshydzai/removal.py": "2055260cfea0cb32cf1236d0896e8accea663144aea0aa05219adb8592d87045",
+    "vshydzai/vshydzai/vshydzai_stack.py": "5d4c06129b9f821938a7c51c4105156ea5968859868e3717fe941562d327dd26"
+  }
+}

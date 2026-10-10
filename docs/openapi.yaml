@@ -1,0 +1,227 @@
+openapi: 3.0.3
+info:
+  title: WebHealth Target List API
+  version: 1.0.0
+  description: 'Public course demonstration API. The ApiUrl stack output includes
+    the stage prefix. Unknown/repeated query parameters are rejected. List order is
+    unspecified. Responses use Cache-Control: no-store. API Gateway may return errors
+    before Lambda runs.'
+servers:
+- url: https://{api_id}.execute-api.{region}.amazonaws.com/{stage}
+  variables:
+    api_id:
+      default: replace-with-stack-api-id
+    region:
+      default: us-east-2
+    stage:
+      default: beta
+      enum:
+      - beta
+      - gamma
+      - prod
+security: []
+paths:
+  /targets:
+    get:
+      operationId: listTargets
+      summary: List crawl targets
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      - name: cursor
+        in: query
+        description: Opaque next_cursor returned by the previous page.
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Page of targets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TargetPage'
+        '400': &id001
+          description: Invalid input or request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429': &id002
+          description: API Gateway throttling
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayError'
+        '500': &id003
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503': &id004
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: createTarget
+      summary: Create a crawl target
+      requestBody: &id005
+        required: true
+        description: JSON up to 16 KiB. PUT replaces all editable fields; enabled
+          defaults to true when omitted.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TargetInput'
+            example:
+              name: Example
+              url: https://example.com/
+              enabled: true
+      responses:
+        '201':
+          description: Target created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Target'
+        '400': *id001
+        '429': *id002
+        '500': *id003
+        '503': *id004
+  /targets/{id}:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^[A-Za-z0-9_-]{1,64}$
+    get:
+      operationId: getTarget
+      summary: Read a crawl target
+      responses:
+        '200':
+          description: Target found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Target'
+        '400': *id001
+        '404': &id006
+          description: Target does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429': *id002
+        '500': *id003
+        '503': *id004
+    put:
+      operationId: updateTarget
+      summary: Replace the editable fields of an existing target
+      requestBody: *id005
+      responses:
+        '200':
+          description: Target updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Target'
+        '400': *id001
+        '404': *id006
+        '429': *id002
+        '500': *id003
+        '503': *id004
+    delete:
+      operationId: deleteTarget
+      summary: Delete a crawl target
+      responses:
+        '204':
+          description: Target deleted; empty response body
+        '400': *id001
+        '404': *id006
+        '429': *id002
+        '500': *id003
+        '503': *id004
+components:
+  schemas:
+    TargetInput:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - url
+      properties:
+        name: &id007
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Trimmed before validation.
+        url: &id008
+          type: string
+          format: uri
+          maxLength: 2048
+          description: Public HTTP(S) URL; no credentials or fragment; ports 80/443
+            only.
+        enabled: &id009
+          type: boolean
+          default: true
+    Target:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - name
+      - url
+      - enabled
+      - created_at
+      - updated_at
+      properties:
+        name: *id007
+        url: *id008
+        enabled: *id009
+        id:
+          type: string
+          readOnly: true
+          pattern: ^[A-Za-z0-9_-]{1,64}$
+        created_at:
+          type: string
+          readOnly: true
+          format: date-time
+        updated_at:
+          type: string
+          readOnly: true
+          format: date-time
+    TargetPage:
+      type: object
+      required:
+      - items
+      - next_cursor
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Target'
+        next_cursor:
+          type: string
+          nullable: true
+    Error:
+      type: object
+      required:
+      - error
+      properties:
+        error:
+          type: string
+    GatewayError:
+      type: object
+      properties:
+        message:
+          type: string
+      description: Error generated by API Gateway before Lambda runs.

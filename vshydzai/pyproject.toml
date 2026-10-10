@@ -1,0 +1,15 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["lambda_src", "."]
+addopts = "-ra"
+markers = [
+  "integration: tests against deployed AWS resources; require --run-live",
+  "functional: application behaviour with mocked AWS/network boundaries"
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
