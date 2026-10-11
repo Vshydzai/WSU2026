@@ -16,7 +16,13 @@ LOGGER = logging.getLogger(__name__)
 def response(status, body=None):
     return {
         "statusCode": status,
-        "headers": {"Content-Type": "application/json", "Cache-Control": "no-store"},
+        "headers": {
+            "Content-Type": "application/json", "Cache-Control": "no-store",
+            # The course API is public and accepts no browser credentials.
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        },
         "body": "" if body is None else json.dumps(body, default=lambda value:
                   float(value) if isinstance(value, Decimal) else str(value)),
     }

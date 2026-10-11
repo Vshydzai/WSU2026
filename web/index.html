@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>WebHealth · Target manager</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.mjs"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to targets</a>
+  <header class="masthead">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">W</span><span>WebHealth<span class="brand-caption">Crawler workspace</span></span></div>
+    <div class="header-note"><span class="schedule-dot" aria-hidden="true"></span>Scheduled every 30 minutes</div>
+  </header>
+  <main id="main">
+    <div class="intro"><div><p class="eyebrow">01 / TARGET MANAGEMENT</p><h1>A clear view of<br>what comes next.</h1><p class="intro-copy">Manage the websites your crawler checks on its next scheduled run.</p></div><div class="intro-aside"><span class="mode-pill" id="mode-label">Not connected</span><p id="mode-detail">Connect your deployed API, or start the server with --demo to rehearse locally.</p></div></div>
+
+    <section class="connection panel" aria-labelledby="connection-heading">
+      <div><h2 id="connection-heading">API connection</h2><p class="muted">Paste the stage root from the stack’s ApiUrl output.</p></div>
+      <form id="connection-form"><label class="sr-only" for="endpoint">API endpoint</label><input id="endpoint" name="endpoint" type="url" placeholder="https://…execute-api…amazonaws.com/beta/" required spellcheck="false" autocomplete="off"><button type="submit" id="connect-button">Connect</button></form>
+      <p class="connection-status" id="connection-status">No requests sent.</p>
+    </section>
+
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+    <div id="error" class="notice error" role="alert" hidden></div>
+
+    <section class="stats" aria-label="Current page summary">
+      <div><span class="stat-label">TARGETS ON THIS PAGE</span><strong id="total-count">—</strong><span class="stat-foot">Up to 25 per request</span></div>
+      <div><span class="stat-label">ENABLED ON THIS PAGE</span><strong id="enabled-count">—</strong><span class="stat-foot">Included in scheduled checks</span></div>
+      <div><span class="stat-label">LAST API ROUND TRIP</span><strong id="latency">—</strong><span class="stat-foot" id="request-detail">Measured in your browser</span></div>
+    </section>
+
+    <div class="workspace">
+      <section class="targets panel" aria-labelledby="targets-heading">
+        <div class="section-heading"><div><p class="eyebrow">YOUR CRAWL QUEUE</p><h2 id="targets-heading">Targets</h2></div><button class="secondary" id="refresh" disabled>Refresh</button></div>
+        <div class="filters"><div><label for="search">Filter this page</label><input id="search" type="search" placeholder="Search name or URL" disabled></div><div><label for="enabled-filter">State</label><select id="enabled-filter" disabled><option value="all">All targets</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select></div></div>
+        <p class="list-summary" id="list-summary" aria-live="polite">Connect an API to load targets.</p>
+        <div id="target-list" class="target-list" aria-busy="false"></div>
+        <div class="empty-state" id="empty-state"><span class="empty-symbol" aria-hidden="true">↗</span><h3>Your next crawl starts here</h3><p>Connect an API, then add a public website to the target list.</p></div>
+        <div class="pagination"><button class="secondary" id="previous" disabled>← Previous</button><span id="page-label">Page 1</span><button class="secondary" id="next" disabled>Next →</button></div>
+      </section>
+
+      <aside class="editor panel" aria-labelledby="editor-heading">
+        <p class="eyebrow" id="editor-kicker">ADD TO THE QUEUE</p><h2 id="editor-heading">New target</h2><p class="muted" id="editor-description">The API validates and stores each target.</p>
+        <form id="target-form">
+          <fieldset id="target-fields" disabled>
+            <label for="target-name">Name</label><input id="target-name" name="name" maxlength="100" placeholder="e.g. University homepage" required autocomplete="off">
+            <label for="target-url">Website URL</label><input id="target-url" name="url" type="url" maxlength="2048" placeholder="https://example.com" required spellcheck="false" autocomplete="off"><p class="field-hint">Public HTTP or HTTPS. No private addresses or credentials.</p>
+            <label class="checkbox-label" for="target-enabled"><input id="target-enabled" type="checkbox" name="enabled" checked><span>Enable scheduled checks</span></label>
+            <button class="full-width" id="save-target" type="submit">Create target <span aria-hidden="true">↗</span></button>
+          </fieldset>
+          <button class="text-button" id="cancel-edit" type="button" hidden>Cancel editing</button>
+        </form>
+        <div class="editor-note"><span aria-hidden="true">◷</span><p>Enabled means queued for crawling. Availability and alarms are reported in CloudWatch after a crawler run.</p></div>
+      </aside>
+    </div>
+    <footer><span>WebHealth / Applied project</span><span>API → Lambda → DynamoDB</span></footer>
+  </main>
+  <dialog id="delete-dialog" aria-labelledby="delete-heading" aria-describedby="delete-description">
+    <h2 id="delete-heading">Delete this target?</h2><p id="delete-description"></p><p class="muted">This removes it from future crawls. Existing monitoring history is unchanged.</p><div class="dialog-actions"><button class="secondary" id="cancel-delete" autofocus>Keep target</button><button class="danger" id="confirm-delete">Delete target</button></div>
+  </dialog>
+</body>
+</html>

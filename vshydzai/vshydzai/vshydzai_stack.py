@@ -103,6 +103,10 @@ class VshydzaiStack(Stack):
                                     retention=logs.RetentionDays.ONE_WEEK, removal_policy=RemovalPolicy.DESTROY)
         self.api = apigateway.RestApi(
             self, "TargetsApi", rest_api_name=f"{prefix}-TargetsApi", cloud_watch_role=manage_api_logging_role,
+            default_cors_preflight_options=apigateway.CorsOptions(
+                allow_origins=apigateway.Cors.ALL_ORIGINS,
+                allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                allow_headers=["Content-Type"], max_age=Duration.minutes(10)),
             deploy_options=apigateway.StageOptions(
                 stage_name=environment, throttling_rate_limit=5, throttling_burst_limit=10,
                 metrics_enabled=True, logging_level=apigateway.MethodLoggingLevel.ERROR,
@@ -117,6 +121,13 @@ class VshydzaiStack(Stack):
         item = collection.add_resource("{id}")
         for method in ("GET", "PUT", "DELETE"):
             item.add_method(method, integration)
+        # Gateway-generated failures (including throttling) never reach Lambda.
+        for name, kind in (("ClientError", apigateway.ResponseType.DEFAULT_4_XX),
+                           ("ServerError", apigateway.ResponseType.DEFAULT_5_XX)):
+            self.api.add_gateway_response(name, type=kind, response_headers={
+                "Access-Control-Allow-Origin": "'*'",
+                "Access-Control-Allow-Headers": "'Content-Type'",
+                "Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'"})
 
         topic = sns.Topic(self, "AlarmTopic", topic_name=f"{prefix}-Alarms")
         if notification_email:

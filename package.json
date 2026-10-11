@@ -2,10 +2,12 @@
   "name": "webhealth-course-project",
   "private": true,
   "scripts": {
+    "test:dashboard": "node --test --experimental-test-coverage --test-coverage-include=web/api-client.mjs --test-coverage-include=web/view-model.mjs --test-coverage-lines=95 web/tests/*.test.mjs",
+    "test:browser": "playwright test",
     "synth": "cd vshydzai && cdk synth",
     "synth:pipeline": "cd vshydzai && cdk synth -c mode=pipeline",
     "deploy:beta": "cd vshydzai && cdk deploy -c environment=beta",
     "deploy:pipeline": "cd vshydzai && cdk deploy -c mode=pipeline"
   },
-  "devDependencies": {"aws-cdk": "2.1128.0"}
+  "devDependencies": {"@playwright/test": "1.64.0", "aws-cdk": "2.1128.0"}
 }

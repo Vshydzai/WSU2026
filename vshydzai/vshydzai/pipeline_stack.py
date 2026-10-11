@@ -41,7 +41,9 @@ class WebHealthPipeline(Stack):
                               encryption=s3.BucketEncryption.S3_MANAGED, enforce_ssl=True,
                               auto_delete_objects=True, removal_policy=RemovalPolicy.DESTROY)
         defaults = pipelines.CodeBuildOptions(
-            build_environment=codebuild.BuildEnvironment(build_image=codebuild.LinuxBuildImage.STANDARD_7_0))
+            build_environment=codebuild.BuildEnvironment(build_image=codebuild.LinuxBuildImage.STANDARD_7_0),
+            partial_build_spec=codebuild.BuildSpec.from_object({
+                "phases": {"install": {"runtime-versions": {"nodejs": "22", "python": "3.12"}}}}))
         source = pipelines.CodePipelineSource.connection(repository, branch, connection_arn=connection_arn)
         pipeline = pipelines.CodePipeline(
             self, "Pipeline", pipeline_name="WebHealth", pipeline_type=codepipeline.PipelineType.V2,
@@ -52,7 +54,7 @@ class WebHealthPipeline(Stack):
                 commands=["cd vshydzai", "ruff check .",
                           "pytest -m 'not integration' --cov=lambda_src --cov=scripts --cov-fail-under=85 "
                           "--junitxml=test-results/local.xml",
-                          "cd ..", "npm run synth:pipeline"],
+                          "cd ..", "npm run test:dashboard", "npm run synth:pipeline"],
                 env={"CONNECTION_ARN": connection_arn,
                      "DEPLOY_ACCOUNT": self.account, "DEPLOY_REGION": self.region,
                      "SOURCE_BRANCH": branch, "NOTIFICATION_EMAIL": notification_email},
