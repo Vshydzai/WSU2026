@@ -34,7 +34,7 @@ jobs:
         run: ruff check vshydzai
       - name: Local tests and infrastructure assertions
         working-directory: vshydzai
-        run: pytest -m "not integration" --cov=lambda_src --cov-report=term-missing --junitxml=test-results/local.xml
+        run: pytest -m "not integration" --cov=lambda_src --cov=scripts --cov-fail-under=85 --cov-report=term-missing --cov-report=json:test-results/coverage.json --junitxml=test-results/local.xml
       - name: Synthesize all environments
         run: |
           npm run synth -- -c environment=beta --quiet --no-lookups
@@ -48,4 +48,6 @@ jobs:
         if: always()
         with:
           name: webhealth-test-results
-          path: vshydzai/test-results/*.xml
+          path: |
+            vshydzai/test-results/*.xml
+            vshydzai/test-results/coverage.json

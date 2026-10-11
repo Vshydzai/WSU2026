@@ -82,6 +82,20 @@ def test_all_operational_resources_have_environment_names(template):
         assert resource["Properties"]["FunctionName"].startswith("WebHealth-beta-")
 
 
+def test_canary_worker_invokes_only_versions_of_its_environment_functions(template):
+    policy = next(value for value in template.find_resources("AWS::IAM::Policy").values()
+                  if "CanaryTraffic" in str(value["Properties"].get("Roles")))
+    statements = [item for item in policy["Properties"]["PolicyDocument"]["Statement"]
+                  if item["Action"] == "lambda:InvokeFunction"]
+    assert len(statements) == 2
+    assert all(item["Resource"] != "*" and ":*" in str(item["Resource"]) for item in statements)
+
+
+def test_evidence_collector_can_discover_both_application_functions(template):
+    assert "ApiFunction" in template.to_json()["Outputs"]
+    assert "CrawlerFunction" in template.to_json()["Outputs"]
+
+
 def test_prod_rejects_deliberate_fault_injection():
     with pytest.raises(ValueError, match="beta"):
         VshydzaiStack(cdk.App(), "BadProd", environment="prod", fault_injection=True)

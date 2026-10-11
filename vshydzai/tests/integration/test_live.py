@@ -79,7 +79,8 @@ def test_live_crawler_reads_api_target(live):
         payload = json.loads(response["Payload"].read())
         assert not response.get("FunctionError"), payload
         result = next(x for x in payload["results"] if x["id"] == item["id"])
-        assert result["http_status"] >= 0 and result["latency_ms"] >= 0
+        assert 200 <= result["http_status"] < 400, result
+        assert result["availability"] == 1 and result["latency_ms"] > 0, result
 
 
 def test_live_sns_alarm_is_persisted(live):

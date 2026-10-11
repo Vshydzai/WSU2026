@@ -1,6 +1,6 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["lambda_src", "."]
+pythonpath = ["lambda_src", "scripts", "."]
 addopts = "-ra"
 markers = [
   "integration: tests against deployed AWS resources; require --run-live",

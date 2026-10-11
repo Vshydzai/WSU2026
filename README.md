@@ -4,7 +4,7 @@ WebHealth is the COMP2029 DevOps applied project. A public REST API manages the 
 
 ## Verification status
 
-Local validation passes 57 tests: 43 unit/infrastructure tests and 14 functional tests, with 89.29% statement coverage of lambda_src. Three additional integration tests require a deployed AWS environment. [Local validation](docs/evidence/local-validation.json) records the checks actually run. Live API, pipeline, alarm, rollback and teardown evidence must come from AWS. [The evidence checklist](docs/EVIDENCE.md) tracks that work.
+Local validation passes 138 tests: 118 unit/infrastructure tests and 20 functional tests, with 90.87% statement coverage of `lambda_src` and `scripts`. The [validation receipt](docs/evidence/operational-readiness-validation.json) records the observed checks. Three additional integration tests require a deployed AWS environment. GitHub Actions and the pipeline build enforce at least 85% combined statement coverage. Live API, pipeline, alarm, rollback and teardown evidence must come from AWS. [The evidence checklist](docs/EVIDENCE.md) tracks that work.
 
 ## Architecture
 
@@ -59,7 +59,9 @@ Use your own AWS session. Configure DEPLOY_ACCOUNT, DEPLOY_REGION and optionally
 ~~~bash
 export DEPLOY_ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
 export DEPLOY_REGION=us-east-2
+python vshydzai/scripts/preflight.py --identity-only
 npx cdk bootstrap "aws://$DEPLOY_ACCOUNT/$DEPLOY_REGION"
+python vshydzai/scripts/preflight.py
 npm run synth
 npm run deploy:beta
 python vshydzai/scripts/seed_targets.py --stack WebHealth-beta
@@ -75,9 +77,9 @@ GitHub Actions runs lint, local tests and synthesis on pushes and pull requests.
 
 AWS CodePipeline reads GitHub through a CodeConnections connection. CodeBuild runs the build tests. Beta and Gamma must pass live service tests before progression. Production requires approval, then its own live checks. A failed test command fails its action and stops progression.
 
-CodeDeploy shifts 10% of alias traffic for five minutes before completing a release. A pre-traffic hook invokes the candidate version. A bounded release-triggered worker sends synthetic checks through the live alias. That worker has no recurring schedule. Operational alarms can stop and roll back the deployment.
+CodeDeploy shifts 10% of alias traffic for five minutes before completing a release. A pre-traffic hook invokes the candidate version. A bounded release-triggered worker waits for actual alias routing, then checks both the candidate version directly and the live alias. Direct checks prevent a broken candidate from being missed because a small sample reached only the old version. That worker has no recurring schedule. Operational alarms can stop and roll back the deployment.
 
-After successful deployments, the release manager records the current and previous versions. Operational alarm events can restore the previous version after the release completes. It checks that the alarm is still active, that CodeDeploy has no active release, and that the alias still points to the recorded version. A revision guard prevents concurrent alias changes. Website unavailability and target latency of at least 3,000 ms produce alerts independently of software rollback.
+After successful deployments, the release manager records the current and previous versions with millisecond completion ordering. Operational alarm events can restore the previous version after the release completes. It checks that the alarm is still active, that CodeDeploy has no active release, and that the alias still points to the recorded version. A revision guard rejects stale alias updates, and conditional storage updates preserve newer release history. These checks reduce races; they are not a distributed lock. Website unavailability and target latency of at least 3,000 ms produce alerts independently of software rollback.
 
 ## Monitoring and quality
 
@@ -99,7 +101,7 @@ SNS alarm records use MessageId for retry deduplication and expire after 30 days
 | vshydzai/tests/unit/ | Behaviour and infrastructure assertions |
 | vshydzai/tests/functional/ | Full application flows with mocked boundaries |
 | vshydzai/tests/integration/ | Deployed AWS checks |
-| vshydzai/scripts/ | Seed, demonstration, live tests and cleanup |
+| vshydzai/scripts/ | Account checks, preflight, seed, demo, live tests, evidence and cleanup |
 | .github/workflows/ci.yml | Pull-request validation |
 | docs/ | API contract, report, demonstration and evidence |
 
@@ -108,10 +110,12 @@ SNS alarm records use MessageId for retry deduplication and expire after 30 days
 Destroy project infrastructure after work. The application stacks created by the pipeline are separate CloudFormation stacks, so removing only the pipeline does not remove them.
 
 ~~~bash
+python vshydzai/scripts/collect_evidence.py --stack WebHealth-beta --output vshydzai/test-results/beta-before-cleanup.json
+python vshydzai/scripts/cleanup.py
 python vshydzai/scripts/cleanup.py --execute
 ~~~
 
-Add --include-legacy only when removing the earlier VshydzaiStack as well. Cleanup stops active pipeline executions, deletes known project stacks and verifies the functions, tables, logs and artifact buckets disappear. Old Lambda versions have an explicit retention policy for rollback between releases; deleting their parent function removes those versions.
+Set `DEPLOY_ACCOUNT` to the intended account; the scripts reject credentials for another account. Add --include-legacy only when removing the earlier VshydzaiStack as well. Cleanup previews by default, stops active pipeline executions without abandoning actions, deletes inventoried stack IDs and verifies the functions, tables, logs and artifact buckets disappear. It checkpoints a JSON receipt after each stack. Old Lambda versions have an explicit retention policy for rollback between releases; deleting their parent function removes those versions. [Operator tools](docs/OPERATIONS.md) explains the receipt fields and permission requirements.
 
 The imported CodeConnections connection and shared CDKToolkit bootstrap are external deployment prerequisites. Review those separately when the account is dedicated to this project.
 
@@ -122,6 +126,7 @@ The imported CodeConnections connection and shared CDKToolkit bootstrap are exte
 - [Demonstration and Q&A](docs/DEMONSTRATION.md)
 - [GitHub Project setup](docs/GITHUB_PROJECT.md)
 - [Evidence checklist](docs/EVIDENCE.md)
+- [Operator tools and evidence limits](docs/OPERATIONS.md)
 - [Architecture slides](docs/WebHealth_Architecture.pptx)
 
 ## References
