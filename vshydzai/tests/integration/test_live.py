@@ -23,9 +23,24 @@ def live():
     return {name: os.environ[name] for name in names}
 
 
-def api(live, method, path="", body=None):
-    return requests.request(method, live["API_URL"].rstrip("/") + "/targets" + path,
-                            json=body, timeout=20)
+def api(live, method, path="", body=None, *, preflight_method="POST"):
+    headers = {"Origin": "http://127.0.0.1:8787"}
+    if method == "OPTIONS":
+        headers.update({"Access-Control-Request-Method": preflight_method,
+                        "Access-Control-Request-Headers": "content-type"})
+    response = requests.request(method, live["API_URL"].rstrip("/") + "/targets" + path,
+                                json=body, headers=headers, timeout=20)
+    assert response.headers.get("Access-Control-Allow-Origin") == "*", response.headers
+    assert response.headers.get("Access-Control-Allow-Credentials", "").lower() != "true"
+    return response
+
+
+def preflight(live, path="", method="POST"):
+    response = api(live, "OPTIONS", path, preflight_method=method)
+    assert response.status_code == 204, response.text
+    allowed = {value.strip() for value in response.headers.get("Access-Control-Allow-Methods", "").split(",")}
+    assert {"GET", "POST", "PUT", "DELETE", "OPTIONS"} <= allowed
+    assert "content-type" in response.headers.get("Access-Control-Allow-Headers", "").lower()
 
 
 @contextmanager
@@ -43,8 +58,10 @@ def target(live, enabled=False):
 
 def test_live_crud_with_dynamodb_read_write_timings(live, record_property):
     table = boto3.resource("dynamodb").Table(live["TARGETS_TABLE_NAME"])
+    preflight(live)
     with target(live) as item:
         path = "/" + item["id"]
+        preflight(live, path, "PUT")
         assert api(live, "GET", path).json()["id"] == item["id"]
         assert api(live, "GET").status_code == 200
         changed = api(live, "PUT", path, {"name": "Updated", "url": "https://example.com/", "enabled": False})
@@ -55,6 +72,7 @@ def test_live_crud_with_dynamodb_read_write_timings(live, record_property):
         assert stored["name"] == "Updated"
         assert api(live, "DELETE", path).status_code == 204
         assert api(live, "GET", path).status_code == 404
+        record_property("browser_cors_verified", "collection/item preflight and CRUD/error responses")
     benchmark = {"id": "timing_" + uuid.uuid4().hex, "name": "Timing", "url": "https://example.com/",
                  "enabled": False}
     try:

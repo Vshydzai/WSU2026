@@ -1,5 +1,6 @@
 import aws_cdk as cdk
 import pytest
+import yaml
 from aws_cdk.assertions import Match, Template
 
 from vshydzai.pipeline_stack import WebHealthPipeline
@@ -30,7 +31,8 @@ def test_target_table_and_alarm_history_are_separate(template):
 
 
 def test_api_exposes_all_crud_methods(template):
-    methods = template.find_resources("AWS::ApiGateway::Method")
+    methods = {key: item for key, item in template.find_resources("AWS::ApiGateway::Method").items()
+               if item["Properties"]["HttpMethod"] != "OPTIONS"}
     assert {item["Properties"]["HttpMethod"] for item in methods.values()} == {"GET", "POST", "PUT", "DELETE"}
     assert len(methods) == 5
 
@@ -57,7 +59,33 @@ def test_schedule_and_api_invoke_live_aliases(template):
                     if "ScheduleExpression" in resource["Properties"])
     assert "CrawlerLive" in str(schedule["Properties"]["Targets"])
     for method in template.find_resources("AWS::ApiGateway::Method").values():
-        assert "ApiLive" in str(method["Properties"]["Integration"]["Uri"])
+        if method["Properties"]["HttpMethod"] != "OPTIONS":
+            assert "ApiLive" in str(method["Properties"]["Integration"]["Uri"])
+
+
+def test_browser_preflight_covers_root_collection_and_item(template):
+    options = [item["Properties"] for item in template.find_resources("AWS::ApiGateway::Method").values()
+               if item["Properties"]["HttpMethod"] == "OPTIONS"]
+    assert len(options) == 3
+    assert len({str(item["ResourceId"]) for item in options}) == 3
+    for item in options:
+        assert item["AuthorizationType"] == "NONE"
+        assert item["Integration"]["Type"] == "MOCK"
+        headers = item["Integration"]["IntegrationResponses"][0]["ResponseParameters"]
+        assert headers["method.response.header.Access-Control-Allow-Origin"] == "'*'"
+        assert headers["method.response.header.Access-Control-Allow-Headers"] == "'Content-Type'"
+        assert "PUT" in headers["method.response.header.Access-Control-Allow-Methods"]
+        assert "DELETE" in headers["method.response.header.Access-Control-Allow-Methods"]
+        assert "Access-Control-Allow-Credentials" not in str(headers)
+
+
+def test_gateway_errors_include_cors_without_browser_credentials(template):
+    responses = template.find_resources("AWS::ApiGateway::GatewayResponse").values()
+    assert {item["Properties"]["ResponseType"] for item in responses} == {"DEFAULT_4XX", "DEFAULT_5XX"}
+    for item in template.find_resources("AWS::ApiGateway::GatewayResponse").values():
+        headers = item["Properties"]["ResponseParameters"]
+        assert headers["gatewayresponse.header.Access-Control-Allow-Origin"] == "'*'"
+        assert "Access-Control-Allow-Credentials" not in str(headers)
 
 
 def test_explicit_removal_policy_on_every_owned_resource(template):
@@ -117,6 +145,11 @@ def test_pipeline_has_three_stages_and_blocking_live_tests():
     projects = tpl.find_resources("AWS::CodeBuild::Project")
     live_projects = [x for x in projects.values() if "--run-live" in str(x)]
     assert len(live_projects) == 3
+    client_builds = [x for x in projects.values() if "npm run test:dashboard" in str(x)]
+    assert len(client_builds) == 1
+    build_spec = yaml.safe_load(client_builds[0]["Properties"]["Source"]["BuildSpec"])
+    assert build_spec["phases"]["install"]["runtime-versions"] == {"nodejs": "22", "python": "3.12"}
+    assert "npm run test:dashboard" in build_spec["phases"]["build"]["commands"]
     assert len(assembly.stacks) == 1
     for resource in tpl.to_json()["Resources"].values():
         assert "DeletionPolicy" in resource
