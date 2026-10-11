@@ -41,10 +41,20 @@ The handler returns a JSON error field. Invalid JSON/input/cursors return 400. M
 
 Bodies larger than 16 KiB are rejected by the handler. No-store response headers prevent caching mutable target data.
 
+## Browser access (CORS)
+
+The public API accepts browser requests without credentials. OPTIONS on the root, /targets and /targets/{id} returns 204 through API Gateway's mock integration. Preflight permits GET, POST, PUT, DELETE and OPTIONS, with Content-Type as the allowed request header and a ten-minute maximum age.
+
+Lambda business responses, including errors and the empty DELETE response, include Access-Control-Allow-Origin: *. API Gateway default 4XX and 5XX responses also include CORS headers so the browser can read throttling and gateway errors. Access-Control-Allow-Credentials is not enabled. CORS controls browser access; it does not authenticate callers or change the public API's throttling.
+
 ## Demonstration
 
 Run python vshydzai/scripts/demo_crud.py --stack WebHealth-beta from the repository root. It prints each request and response, verifies the deleted target returns 404 and removes only its own target.
 
+For the browser interface run `python vshydzai/scripts/serve_dashboard.py --stack WebHealth-beta`. The [dashboard guide](DASHBOARD.md) explains deployed use, the explicit local simulator and evidence limits.
+
 SDK read/write durations appear in DynamoDBReadMs/DynamoDBWriteMs metrics. These timings include the client call and are measured separately from API response latency.
 
 [OpenAPI specification](openapi.yaml)
+
+Reference: [AWS API Gateway CORS behaviour](https://docs.aws.amazon.com/apigateway/latest/developerguide/how-to-cors.html).

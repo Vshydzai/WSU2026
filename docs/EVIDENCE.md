@@ -1,10 +1,11 @@
 # Evidence to collect before final submission
 
-Latest local results are recorded in [operational-readiness-validation.json](evidence/operational-readiness-validation.json). The earlier [local-validation.json](evidence/local-validation.json) remains historical. AWS and GitHub settings below require observations from the deployed account or repository settings.
+Latest local results are recorded in [browser-dashboard-validation.json](evidence/browser-dashboard-validation.json). The earlier operational-readiness and local-validation receipts remain historical. AWS and GitHub settings below require observations from the deployed account or repository settings. The explicitly labelled local simulator is rehearsal only and does not satisfy AWS evidence requirements.
 
 | Evidence | Acceptance |
 | --- | --- |
 | CRUD request output | POST 201, GET 200, PUT 200, DELETE 204, deleted target 404 |
+| Browser CRUD and CORS | Dashboard connected to the actual stage URL; successful create/edit/delete and visible errors, matched to DynamoDB observations |
 | DynamoDB targets | The corresponding creates and updates appear in the correct environment |
 | Crawler result | Enabled API-created target appears; disabled target does not |
 | Three integration tests | Passing JUnit report in Beta, Gamma and Prod |

@@ -6,6 +6,7 @@ Run dependency setup and npm commands from the repository root. This directory c
 - [Operational runbook](../RUNBOOK.md)
 - [API contract](../docs/API.md)
 - [Testing map](../docs/TESTING.md)
+- [Browser dashboard](../docs/DASHBOARD.md)
 
 From this directory, with the virtual environment active:
 

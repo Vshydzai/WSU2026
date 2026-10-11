@@ -6,6 +6,8 @@ WebHealth manages a list of websites and checks their operational health on AWS.
 
 This report describes the implemented design and local verification. The evidence checklist identifies the AWS observations still needed before final submission. It makes no claim that an unobserved deployment, pipeline run or rollback succeeded.
 
+The browser target manager provides the demonstration interface. It calls the public API directly for CRUD, reads an individual target before editing, supports current-page filters and cursor navigation, and displays actionable errors. Its page counts and browser round-trip timing are labelled separately from global target counts and DynamoDB SDK measurements. CloudWatch remains the source of crawler health and availability.
+
 ## Requirements and scope
 
 The project combines CRUD target management, Python business logic, AWS CDK infrastructure, staged CI/CD and operational telemetry. The recurring crawler cadence is 30 minutes. Every owned CloudFormation resource has an explicit removal policy. Project infrastructure must be destroyed when each working session ends.
@@ -36,6 +38,8 @@ The crawler role has read-only target access. The API role can perform target CR
 
 GitHub Actions validates pull requests with lint, local tests and infrastructure synthesis. Enforcing merge protection requires the repository's main branch to require the actual validate check.
 
+The browser chunk adds native Node client tests and desktop/mobile Playwright checks to GitHub validation. CodePipeline also runs the client tests with a 95% line gate for the API client and view model, alongside its existing 85% Python statement gate. CodeBuild explicitly selects Node 22 and Python 3.12 to match the local setup.
+
 AWS CodePipeline reads the source repository through a CodeConnections connection. CodeBuild runs the local tests and synthesizes the cloud assembly. CDK deployment stages promote the selected revision through Beta, Gamma and Prod. Each stage includes live integration checks. Production also includes an approval action.
 
 This separates source validation from deployed-service verification. The pipeline stops if a test process exits unsuccessfully. Stage checks use actual CloudFormation outputs, so generated endpoint names do not need to be copied into source code.
@@ -58,6 +62,8 @@ Three integration tests target deployed AWS: public CRUD with direct storage ver
 
 The local validation receipt records observed results. AWS stage reports and screenshots remain separate evidence. Performance thresholds should be based on a documented workload and measured results, rather than an invented service guarantee.
 
+Dashboard functional tests exercise actual loopback HTTP against an explicit in-memory simulator. The simulator shares deployed target validation, binds only to 127.0.0.1 and serves an asset allowlist. Its local records disappear when the server stops. These tests and the browser rehearsal do not establish DynamoDB, crawler, alarm or deployment behaviour on AWS.
+
 ## Operations and teardown
 
 The runbook supplies deployment, seed, demonstration, troubleshooting and rollback procedures. Daily teardown deletes the pipeline and separate application stacks. The artifact bucket deletes objects automatically. Tables and logs use destruction policies. Lambda versions retain their code between releases; deleting the parent function removes its versions during teardown.
@@ -69,6 +75,8 @@ The operational follow-up adds a strict intended-account check, read-only bootst
 ## Demonstration and technical contribution
 
 The presentation begins with a brief architecture overview and then shows the GitHub repository, README, Project board and live API operations. The walkthrough explains how a request reaches DynamoDB, how the next crawler run consumes changed targets, how tests block promotion and how a previous version receives traffic after recovery.
+
+For the API portion, the browser connects to the actual Beta stage while the presenter shows matching DynamoDB changes. It uses wildcard CORS without credentials because the course API is public. OPTIONS preflight is handled by API Gateway; Lambda and gateway error responses expose the CORS headers required for browser diagnostics. Target names are rendered as text, target links are restricted to HTTP(S), writes cannot overlap, and uncertain write outcomes require inspection before retrying. The dashboard adds no cloud hosting resources and does not change the 30-minute crawler schedule.
 
 The implementation replaces the static runtime target list, adds CRUD and validation, introduces stage isolation and release automation, and makes behaviour testable. Commits, linked issues and the code walkthrough provide evidence of those technical changes. The final presenter should explain the design decisions and reproduce the observed outcomes.
 

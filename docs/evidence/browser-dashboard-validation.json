@@ -1,0 +1,143 @@
+{
+  "recorded_at_utc": "2026-10-11T08:41:18.927Z",
+  "repository": "Vshydzai/WSU2026",
+  "branch": "feature/browser-dashboard",
+  "base_commit": "d4c79d19c1ae8897ac3fa98b45e770b82d30af03",
+  "follows_pull_request": 52,
+  "python_version": "3.12.14",
+  "node_version": "v24.19.0",
+  "cdk_cli_version": "2.1128.0",
+  "cdk_library_version": "2.263.0",
+  "playwright_version": "1.64.0",
+  "python_tests": {
+    "command": "pytest -m \"not integration\" --cov=lambda_src --cov=scripts --cov-fail-under=85 --cov-report=term-missing --cov-report=json:test-results/coverage.json --junitxml=test-results/local.xml -q --tb=short",
+    "passed": 186,
+    "functional": 34,
+    "unit_and_infrastructure": 152,
+    "integration_deselected": 3,
+    "elapsed_seconds": 18.881
+  },
+  "python_coverage": {
+    "scope": "lambda_src and scripts, including retained legacy hello.py",
+    "statement_percent": 92.22,
+    "statements": 1093,
+    "covered": 1008,
+    "enforced_minimum_percent": 85
+  },
+  "node_tests": {
+    "command": "npm run test:dashboard",
+    "passed": 20,
+    "coverage_scope": [
+      "web/api-client.mjs",
+      "web/view-model.mjs"
+    ],
+    "line_percent": 100,
+    "branch_percent": 99.06,
+    "function_percent": 100,
+    "enforced_minimum_line_percent": 95,
+    "excludes": "app.mjs DOM orchestration, HTML and CSS; checked separately with Playwright"
+  },
+  "browser_tests": {
+    "command": "DASHBOARD_CHROMIUM_PATH=/tmp/chromium npm run test:browser -- --max-failures=1",
+    "passed": 26,
+    "failed": 0,
+    "elapsed_seconds": 11.762,
+    "projects": [
+      {
+        "project": "desktop",
+        "passed": 13,
+        "failed": 0
+      },
+      {
+        "project": "mobile",
+        "passed": 13,
+        "failed": 0
+      }
+    ],
+    "chromium_version": "153.0.8010.0",
+    "local_runtime_source": "Temporary @sparticuz/chromium 153.0.0 package; its binary was selected explicitly after the default Playwright download returned a non-archive response. This package is not a repository dependency.",
+    "default_ci_browser": "Chromium downloaded for pinned Playwright 1.64.0; CI outcome is recorded in GitHub Actions, not inferred from this local run.",
+    "boundaries": "Loopback HTTP CRUD against explicit in-memory simulator, plus controlled interception for throttling, reload failures and public-endpoint classification. No AWS requests or metrics.",
+    "visual_review": {
+      "desktop": "passed",
+      "mobile": "passed",
+      "horizontal_overflow": "none at the tested desktop/mobile viewports",
+      "screenshots": "Generated test-results/dashboard-desktop.png and dashboard-mobile.png; CI uploads screenshots and JUnit reports."
+    }
+  },
+  "lint": "ruff check vshydzai: passed",
+  "syntax": "node --check web/app.mjs and playwright.config.mjs: passed",
+  "diff_check": "git diff --check: passed",
+  "synthesis": {
+    "beta": {
+      "result": "passed",
+      "no_lookups": true,
+      "deployment_performed": false
+    },
+    "gamma": {
+      "result": "passed",
+      "no_lookups": true,
+      "deployment_performed": false
+    },
+    "prod": {
+      "result": "passed",
+      "no_lookups": true,
+      "deployment_performed": false
+    },
+    "three-stage pipeline": {
+      "result": "passed",
+      "no_lookups": true,
+      "deployment_performed": false
+    }
+  },
+  "contract_checks": {
+    "crud_routes": 5,
+    "mock_preflight_routes": 3,
+    "gateway_error_response_types": [
+      "DEFAULT_4XX",
+      "DEFAULT_5XX"
+    ],
+    "browser_credentials": false,
+    "recurring_crawler_schedule": "rate(30 minutes)",
+    "explicit_resource_removal_policies": "verified by CDK assertions",
+    "codebuild_runtimes": {
+      "nodejs": "22",
+      "python": "3.12"
+    },
+    "codepipeline_client_test_gate": "verified in synthesized build specification",
+    "aws_stage_browser_gate": "Existing live CRUD test now checks collection/item OPTIONS and CRUD/error CORS headers. Implemented and collected; not executed against AWS."
+  },
+  "not_performed": [
+    "AWS deployment or deployed-browser CORS verification",
+    "Three live integration tests per environment",
+    "Genuine CloudWatch alarm, canary or operational rollback",
+    "AWS infrastructure teardown",
+    "GitHub Project or branch-protection administration"
+  ],
+  "protected_user_stories": "No board or issue mutations performed.",
+  "source_sha256": {
+    ".github/workflows/ci.yml": "29fa2d38d9b9e0a9268f656b178e5d55b37effef62de38465d803031455c1f97",
+    ".gitignore": "b9c9f68ffd46e259f7bd4411c23904f9bae355540889a2b418efc8340952ce82",
+    "docs/openapi.yaml": "6ff0bb73c70e5121884b55384b65569dcb6cfaa7bfe813e5ae7208d6da3ed921",
+    "package-lock.json": "74d91d269ebcb42ec559d615c6796b089e3ab6e4f9576f6445a7db4b6322b7c6",
+    "package.json": "123919cd9d3caffe01227a4c20a310aecf25710516e96b95a9806f11053d2621",
+    "playwright.config.mjs": "54c625a2eb4728a68d36782a5073c7c1fb4c36658d0356e3cc7e0dcd8c84a1ff",
+    "vshydzai/lambda_src/targets_api.py": "567eda26286564b1b01fddab85e7965bda8710bcb401f217258eb2db69e26283",
+    "vshydzai/pyproject.toml": "011dab96dfc3a843066c639202f2bf56e682e52387fc6c5f91838abed6c93ae4",
+    "vshydzai/scripts/serve_dashboard.py": "0135a87fde1f43e17e0f3bcf87196c0b5adfa712c8c1471a4bc744e07020edd3",
+    "vshydzai/tests/functional/test_dashboard_http.py": "120b0acc2fe22bdc915c3f7b50789125e07ed50fbe667f52337750fa0cf07955",
+    "vshydzai/tests/unit/test_dashboard.py": "978408e30e852134369ae575c16eba8c93de9402285759cad476eef21e2bdd92",
+    "vshydzai/tests/unit/test_vshydzai_stack.py": "e61a96b3f6f62bd4387b9d4c069fd6156fb46497a9aa0a9ca989b31d50d42be7",
+    "vshydzai/vshydzai/pipeline_stack.py": "ca95156f346a5ed1e6c9d9d30762dc097a2dfca5cb0d057ec9ab42f39eeaef81",
+    "vshydzai/vshydzai/vshydzai_stack.py": "c1461b073631054ab1e4a140ccb64198ddbf32c4108898449410e4973eedab53",
+    "web/api-client.mjs": "01341d445379ac5b48599636cb15ceaeac7bed1342fea2f07a0f20e285f81421",
+    "web/app.mjs": "49f4f72eb604b965b1ea3ab1ad56f1c67540ca349975a579f502f661e8d334c9",
+    "web/browser/dashboard.spec.mjs": "037ec372c7e62662644090fa5bec3f5b44b16b995951ca5393e0c9bea27a8464",
+    "web/index.html": "4532fbd495c0896beb2d2e22720553a2bc09994595695872b0b51b9a774e385b",
+    "web/styles.css": "1716447661d4e82d9b43c6a4bacfaeea12bead5ad8ac4cff2c5e4513bb13a0fe",
+    "web/tests/api-client.test.mjs": "3d2b4b3dcaffe0256d566dea0d6c46428fc2ef2a69c1fc96b04130cae9116d75",
+    "web/tests/view-model.test.mjs": "d7eaccb1e5d1249286d4c6211e9c9778800f1b042ee9b889eea65939dbf62b4a",
+    "web/view-model.mjs": "71bc05d51de9ff2854a735cc15d4fa9b5c502c845a532f32c306fd7bb76e5538",
+    "vshydzai/tests/integration/test_live.py": "14249677bf8ad475f82a862acab043c7b497d34f882cb00f4a4831bcbeebe4de"
+  }
+}

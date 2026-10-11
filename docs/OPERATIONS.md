@@ -10,6 +10,8 @@ Run these commands from the repository root with the Python environment active. 
 | `preflight.py --pipeline` | Read identity, CDKToolkit and GitHub connection | Readable prerequisites are ready; not proof of deploy permissions |
 | `seed_targets.py --stack WebHealth-beta` | Create missing seed targets through the public API | Existing URLs remain; repeated seed entries are deduplicated |
 | `demo_crud.py --stack WebHealth-beta` | Create/read/update/delete its own demo target | Exact CRUD statuses plus deleted-record 404 verified |
+| `serve_dashboard.py --stack WebHealth-beta` | Serve local assets; read account-checked stack outputs; browser calls the public API directly | Interactive CRUD; corresponding DynamoDB changes must be shown separately |
+| `serve_dashboard.py --demo` | Serve loopback assets and temporary in-memory targets; no AWS calls | Rehearsal only, never deployed-AWS evidence |
 | `run_live_tests.py --stack WebHealth-beta` | Live API/storage/crawler/SNS checks | Three integration tests passed or failed in this environment |
 | `collect_evidence.py --stack WebHealth-beta` | Read AWS state only | Observed snapshot; failed/unavailable states stay visible |
 | `cleanup.py` | Read stack inventory only | Preview, never proof of deletion |
@@ -71,4 +73,4 @@ This table describes the tool calls, not an instruction to grant broad administr
 | Evidence | `cloudformation:DescribeStacks`, `cloudformation:ListStackResources`, `lambda:GetAlias`, `lambda:GetFunctionConfiguration` for the project's release-manager mapping, `dynamodb:Scan` on ReleaseState, `cloudwatch:DescribeAlarms`, `cloudwatch:DescribeAlarmHistory`, `cloudwatch:GetMetricStatistics`, `codedeploy:ListDeployments`, `codedeploy:GetDeployment`, `codepipeline:ListPipelineExecutions` |
 | Cleanup | `cloudformation:DescribeStacks`, `cloudformation:ListStackResources`, `cloudformation:DeleteStack`, execution list/get/stop in CodePipeline, `lambda:GetFunction`, `dynamodb:DescribeTable`, `logs:DescribeLogGroups`, `s3:ListBucket` for bucket existence checks; CloudFormation also needs the permissions/service role to delete stack resources |
 
-Secrets, expired sessions and AccessDenied are stop/review conditions, not reasons to bypass account protections. No deploy, genuine alarm, rollback or teardown has been executed by the local operator tests. The [latest validation receipt](evidence/operational-readiness-validation.json) states what was actually run.
+Secrets, expired sessions and AccessDenied are stop/review conditions, not reasons to bypass account protections. No deploy, genuine alarm, rollback or teardown has been executed by the local operator tests. The [latest validation receipt](evidence/browser-dashboard-validation.json) states what was actually run. See [the browser guide](DASHBOARD.md) for direct API access and the explicit in-memory rehearsal mode.
