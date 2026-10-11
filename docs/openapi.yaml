@@ -1,11 +1,12 @@
 openapi: 3.0.3
 info:
   title: WebHealth Target List API
-  version: 1.0.0
+  version: 1.1.0
   description: 'Public course demonstration API. The ApiUrl stack output includes
     the stage prefix. Unknown/repeated query parameters are rejected. List order is
     unspecified. Responses use Cache-Control: no-store. API Gateway may return errors
-    before Lambda runs.'
+    before Lambda runs. Browser CORS permits all origins without credentials, GET/POST/PUT/DELETE/OPTIONS
+    and the Content-Type request header. Lambda and gateway failures include CORS headers.'
 servers:
 - url: https://{api_id}.execute-api.{region}.amazonaws.com/{stage}
   variables:
@@ -21,7 +22,20 @@ servers:
       - prod
 security: []
 paths:
+  /:
+    options:
+      operationId: preflightRoot
+      summary: Browser preflight (API Gateway mock integration)
+      responses:
+        '204':
+          $ref: '#/components/responses/CorsPreflight'
   /targets:
+    options:
+      operationId: preflightTargets
+      summary: Browser preflight (API Gateway mock integration)
+      responses:
+        '204':
+          $ref: '#/components/responses/CorsPreflight'
     get:
       operationId: listTargets
       summary: List crawl targets
@@ -41,30 +55,47 @@ paths:
       responses:
         '200':
           description: Page of targets
+          headers: &corsHeaders
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+                enum: ['*']
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+                example: GET,POST,PUT,DELETE,OPTIONS
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+                example: Content-Type
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TargetPage'
         '400': &id001
           description: Invalid input or request body
+          headers: *corsHeaders
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '429': &id002
           description: API Gateway throttling
+          headers: *corsHeaders
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/GatewayError'
         '500': &id003
           description: Unexpected server error
+          headers: *corsHeaders
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '503': &id004
           description: Storage temporarily unavailable
+          headers: *corsHeaders
           content:
             application/json:
               schema:
@@ -87,6 +118,7 @@ paths:
       responses:
         '201':
           description: Target created
+          headers: *corsHeaders
           content:
             application/json:
               schema:
@@ -103,12 +135,19 @@ paths:
       schema:
         type: string
         pattern: ^[A-Za-z0-9_-]{1,64}$
+    options:
+      operationId: preflightTarget
+      summary: Browser preflight (API Gateway mock integration)
+      responses:
+        '204':
+          $ref: '#/components/responses/CorsPreflight'
     get:
       operationId: getTarget
       summary: Read a crawl target
       responses:
         '200':
           description: Target found
+          headers: *corsHeaders
           content:
             application/json:
               schema:
@@ -116,6 +155,7 @@ paths:
         '400': *id001
         '404': &id006
           description: Target does not exist
+          headers: *corsHeaders
           content:
             application/json:
               schema:
@@ -130,6 +170,7 @@ paths:
       responses:
         '200':
           description: Target updated
+          headers: *corsHeaders
           content:
             application/json:
               schema:
@@ -145,12 +186,22 @@ paths:
       responses:
         '204':
           description: Target deleted; empty response body
+          headers: *corsHeaders
         '400': *id001
         '404': *id006
         '429': *id002
         '500': *id003
         '503': *id004
 components:
+  responses:
+    CorsPreflight:
+      description: Public browser preflight; no credentials; ten-minute maximum age
+      headers:
+        <<: *corsHeaders
+        Access-Control-Max-Age:
+          schema:
+            type: integer
+            example: 600
   schemas:
     TargetInput:
       type: object

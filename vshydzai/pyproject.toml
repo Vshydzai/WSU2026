@@ -4,7 +4,7 @@ pythonpath = ["lambda_src", "scripts", "."]
 addopts = "-ra"
 markers = [
   "integration: tests against deployed AWS resources; require --run-live",
-  "functional: application behaviour with mocked AWS/network boundaries"
+  "functional: application behaviour with mocked AWS/network or a local HTTP simulator"
 ]
 
 [tool.ruff]

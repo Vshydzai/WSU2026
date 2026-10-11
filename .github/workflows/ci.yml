@@ -29,12 +29,20 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Dashboard client tests (95% line coverage gate)
+        run: npm run test:dashboard
       - run: python -m pip install -r vshydzai/requirements-dev.txt
       - name: Lint
         run: ruff check vshydzai
       - name: Local tests and infrastructure assertions
         working-directory: vshydzai
         run: pytest -m "not integration" --cov=lambda_src --cov=scripts --cov-fail-under=85 --cov-report=term-missing --cov-report=json:test-results/coverage.json --junitxml=test-results/local.xml
+      - name: Install Chromium for browser checks
+        run: npx playwright install --with-deps chromium
+      - name: Browser demonstration checks
+        env:
+          DASHBOARD_PYTHON: python
+        run: npm run test:browser
       - name: Synthesize all environments
         run: |
           npm run synth -- -c environment=beta --quiet --no-lookups
@@ -51,3 +59,5 @@ jobs:
           path: |
             vshydzai/test-results/*.xml
             vshydzai/test-results/coverage.json
+            test-results/
+            playwright-report/

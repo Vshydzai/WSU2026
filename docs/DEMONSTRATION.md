@@ -2,7 +2,7 @@
 
 ## Before presenting
 
-Deploy and verify the environment before the session. Seed its targets and confirm the SNS subscription. Open the repository, README, Project board, relevant source files, AWS dashboard, pipeline and saved rollback evidence in advance. Keep the three-slide architecture overview brief.
+Deploy and verify the environment before the session. Seed its targets and confirm the SNS subscription. Start `python vshydzai/scripts/serve_dashboard.py --stack WebHealth-beta` and confirm that the page shows the deployed endpoint. Open the repository, README, Project board, relevant source files, AWS dashboard, pipeline and saved rollback evidence in advance. Keep the three-slide architecture overview brief. Rehearse beforehand with `--demo`; its simulator results are not AWS assessment evidence.
 
 ## Timing
 
@@ -10,13 +10,15 @@ Deploy and verify the environment before the session. Seed its targets and confi
 | --- | --- |
 | 0:00–1:00 | Project purpose, architecture and release design |
 | 1:00–2:00 | GitHub folders, README, API contract and Project board |
-| 2:00–5:00 | Run demo_crud.py and show corresponding DynamoDB changes |
+| 2:00–5:00 | Create, edit, disable and delete through the browser; show corresponding DynamoDB changes |
 | 5:00–6:00 | Invoke the live crawler and explain enabled-target selection |
 | 6:00–8:00 | Show tests, stage blockers and pipeline progression |
 | 8:00–9:00 | Show monitoring and recorded rollback recovery |
 | 9:00–10:00 | Explain your code contribution and cleanup |
 
 Deployments and canary rollouts can take longer than the presentation. Show their previously captured outcomes and deployment IDs while demonstrating the API live.
+
+Follow [the browser demonstration sequence](DASHBOARD.md#demonstration-sequence). Keep `demo_crud.py` available as a CLI fallback against the same deployed API. Show that browser round-trip latency and Lambda DynamoDB SDK timing are separate measurements. The browser reports enabled state, while CloudWatch reports actual crawler availability.
 
 ## Code walkthrough
 
@@ -29,6 +31,7 @@ Deployments and canary rollouts can take longer than the presentation. Show thei
 7. canary_traffic.py checks the live alias during the release.
 8. release_manager.py records successful versions and handles operational rollback.
 9. tests show success paths, failures and infrastructure constraints.
+10. web/api-client.mjs enforces the API response contract; web/app.mjs renders target data safely and prevents overlapping writes. serve_dashboard.py serves assets or an explicit in-memory rehearsal.
 
 ## Questions to prepare
 

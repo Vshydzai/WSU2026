@@ -39,6 +39,8 @@ python vshydzai/scripts/seed_targets.py --stack WebHealth-beta
 python vshydzai/scripts/run_live_tests.py --stack WebHealth-beta
 ~~~
 
+For the browser CRUD demonstration, run `python vshydzai/scripts/serve_dashboard.py --stack WebHealth-beta` and open http://127.0.0.1:8787. The server reads the selected stack's API output with the intended-account guard, then the browser calls that public API directly. Ctrl+C stops the local server. See [the dashboard guide](docs/DASHBOARD.md) for the no-AWS `--demo` rehearsal, browser checks and CORS troubleshooting. Stopping this server does not tear down deployed AWS resources.
+
 The original VshydzaiStack is a separate legacy stack. Its hardcoded AlarmLogs table does not replace the new target table. Use the legacy cleanup flag when that stack belongs to this project.
 
 ## Pipeline setup

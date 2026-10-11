@@ -225,3 +225,4 @@ test-results/
 .coverage
 htmlcov/
 .env.live
+playwright-report/

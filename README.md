@@ -1,16 +1,16 @@
 # WebHealth
 
-WebHealth is the COMP2029 DevOps applied project. A public REST API manages the list of websites in DynamoDB. A Python Lambda checks enabled websites every 30 minutes and records availability, latency and HTTP status. AWS CDK defines the infrastructure and a pipeline promotes one revision through Beta, Gamma and Prod.
+WebHealth is the COMP2029 DevOps applied project. A browser target manager calls a public REST API to manage websites in DynamoDB. A Python Lambda checks enabled websites every 30 minutes and records availability, latency and HTTP status. AWS CDK defines the infrastructure and a pipeline promotes one revision through Beta, Gamma and Prod.
 
 ## Verification status
 
-Local validation passes 138 tests: 118 unit/infrastructure tests and 20 functional tests, with 90.87% statement coverage of `lambda_src` and `scripts`. The [validation receipt](docs/evidence/operational-readiness-validation.json) records the observed checks. Three additional integration tests require a deployed AWS environment. GitHub Actions and the pipeline build enforce at least 85% combined statement coverage. Live API, pipeline, alarm, rollback and teardown evidence must come from AWS. [The evidence checklist](docs/EVIDENCE.md) tracks that work.
+Local Python validation passes 186 tests: 152 unit/infrastructure tests and 34 functional tests, with 92.22% statement coverage of `lambda_src` and `scripts`. Twenty Node client tests pass with 100% line coverage of `web/api-client.mjs` and `web/view-model.mjs`. Twenty-six desktop/mobile browser checks pass separately. The [validation receipt](docs/evidence/browser-dashboard-validation.json) records observed checks and their scopes. Three additional integration tests require a deployed AWS environment. GitHub Actions and the pipeline build enforce at least 85% Python statement coverage and 95% line coverage of the two tested client modules. Live API, pipeline, alarm, rollback and teardown evidence must come from AWS. [The evidence checklist](docs/EVIDENCE.md) tracks that work.
 
 ## Architecture
 
 ~~~mermaid
 flowchart TD
-    Client["API client"] --> API["API Gateway"]
+    Client["Browser or CLI client"] --> API["API Gateway"]
     API --> CRUD["CRUD Lambda: live alias"]
     CRUD <--> Targets[("DynamoDB Targets")]
     Schedule["EventBridge: 30 minutes"] --> Crawler["Crawler Lambda: live alias"]
@@ -48,9 +48,20 @@ cd vshydzai
 ruff check .
 pytest -m "not integration"
 cd ..
+npm run test:dashboard
 ~~~
 
 In PowerShell, create the environment with py -3.12 -m venv .venv and activate .\.venv\Scripts\Activate.ps1. The remaining Python and npm commands are the same.
+
+## Browser demonstration
+
+Rehearse immediately without AWS credentials or deployment:
+
+~~~bash
+python3 vshydzai/scripts/serve_dashboard.py --demo
+~~~
+
+Open **http://127.0.0.1:8787**. The **Local simulator** label explains that records are temporary and no AWS calls are made. For assessment, run `python vshydzai/scripts/serve_dashboard.py --stack WebHealth-beta` against a deployed stack and show the corresponding DynamoDB changes. The browser supports CRUD, filtering of the current page, cursor pagination and actionable errors. [The dashboard guide](docs/DASHBOARD.md) covers the full sequence and browser tests.
 
 ## Deploy and test
 
@@ -73,7 +84,7 @@ See [the runbook](RUNBOOK.md) for PowerShell commands, pipeline setup and recove
 
 ## CI/CD and recovery
 
-GitHub Actions runs lint, local tests and synthesis on pushes and pull requests. The repository owner must configure the validate status check as required on main.
+GitHub Actions runs lint, Python/Node tests, desktop/mobile browser checks and synthesis on pushes and pull requests. The repository owner must configure the validate status check as required on main.
 
 AWS CodePipeline reads GitHub through a CodeConnections connection. CodeBuild runs the build tests. Beta and Gamma must pass live service tests before progression. Production requires approval, then its own live checks. A failed test command fails its action and stops progression.
 
@@ -102,6 +113,7 @@ SNS alarm records use MessageId for retry deduplication and expire after 30 days
 | vshydzai/tests/functional/ | Full application flows with mocked boundaries |
 | vshydzai/tests/integration/ | Deployed AWS checks |
 | vshydzai/scripts/ | Account checks, preflight, seed, demo, live tests, evidence and cleanup |
+| web/ | Browser dashboard, public API client, Node tests and browser checks |
 | .github/workflows/ci.yml | Pull-request validation |
 | docs/ | API contract, report, demonstration and evidence |
 
@@ -127,6 +139,7 @@ The imported CodeConnections connection and shared CDKToolkit bootstrap are exte
 - [GitHub Project setup](docs/GITHUB_PROJECT.md)
 - [Evidence checklist](docs/EVIDENCE.md)
 - [Operator tools and evidence limits](docs/OPERATIONS.md)
+- [Browser dashboard and local rehearsal](docs/DASHBOARD.md)
 - [Architecture slides](docs/WebHealth_Architecture.pptx)
 
 ## References
