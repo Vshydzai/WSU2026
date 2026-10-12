@@ -1,3 +1,4 @@
+# receives the request and chooses the operation
 """API Gateway REST proxy handler for the crawler target list."""
 
 import base64

@@ -1,3 +1,4 @@
+# checks the submitted information
 """Target validation shared by the API and the crawler."""
 
 import ipaddress

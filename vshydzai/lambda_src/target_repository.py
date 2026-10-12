@@ -1,3 +1,4 @@
+# performs DynamoDB operations
 """Conditional target writes and measured DynamoDB access."""
 
 import base64

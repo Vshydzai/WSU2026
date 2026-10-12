@@ -1,4 +1,5 @@
 // Public API client. No AWS credentials, automatic write retries or proxying.
+// sends the browser’s request
 export class ApiError extends Error {
   constructor(message, status = 0) {
     super(message);
