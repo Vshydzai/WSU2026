@@ -5,6 +5,8 @@ import math
 import os
 import time
 
+APPLICATION_RELEASE = "2026-10-13-baseline-2"
+
 
 def emit(component, metrics, *, dimensions=None, units=None):
     values = {name: float(value) for name, value in metrics.items()}
@@ -13,6 +15,8 @@ def emit(component, metrics, *, dimensions=None, units=None):
     labels = {"Environment": os.environ.get("ENVIRONMENT", "local"), "Component": component}
     labels.update(dimensions or {})
     document = {
+        # Diagnostic field only: keep metric dimensions stable between builds.
+        "ApplicationRelease": APPLICATION_RELEASE,
         "_aws": {
             "Timestamp": int(time.time() * 1000),
             "CloudWatchMetrics": [{
