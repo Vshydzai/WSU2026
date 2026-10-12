@@ -1,0 +1,31 @@
+{
+  "change": "Native Lambda alias release alternative to CodeDeploy",
+  "local_verification_date": "2026-10-12",
+  "python": "3.12.14",
+  "python_tests": {
+    "passed": 216,
+    "live_integration_tests_not_run": 3,
+    "statement_coverage_percent": 93.25,
+    "required_percent": 85
+  },
+  "dashboard_tests": {
+    "passed": 20,
+    "line_coverage_percent": 100
+  },
+  "lint": "passed",
+  "synthesis": {
+    "standalone_beta": "passed",
+    "pipeline_beta_gamma_prod": "passed",
+    "codedeploy_resources_in_alias_mode": 0,
+    "automatic_imported_alias_permissions": "CDK warns about imported aliases; scoped API Gateway and EventBridge CfnPermission resources are explicitly defined and asserted"
+  },
+  "aws_deployment": "not_run",
+  "aws_rollback": "not_observed",
+  "aws_cleanup": "not_verified",
+  "github_publication": "pending_explicit_authorization",
+  "limitations": [
+    "CodePipeline list access is confirmed from user output, but CodeBuild, CodeConnections and deployment permissions need live verification.",
+    "The previous failed stack still requires cleanup; retention does not prove blocked CodeDeploy entries are deleted.",
+    "Local tests use mocked AWS and accelerated canary time; the deployed canary is configured for five minutes."
+  ]
+}

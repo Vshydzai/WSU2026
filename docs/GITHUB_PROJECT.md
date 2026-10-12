@@ -31,3 +31,7 @@ Issues 19 and 20 cover GitHub validation and test automation. Issues 21–23 cov
 In repository Settings, configure main to require pull requests and the validate status check from Validate WebHealth. Wait until that check has run so GitHub can select the actual check name. Apply the policy to administrators if the assessment requires proof that failing changes cannot bypass it.
 
 The GitHub connector used for this implementation can edit issues and pull requests. It does not expose Project board fields or branch-protection writes. Those settings require signed-in repository administration through GitHub's UI or an appropriately authorized GitHub CLI session. A workflow file and a written board guide are not evidence that either setting is enabled.
+
+## Alternative deployment task
+
+Track the CodePipeline/native-Lambda-alias alternative outside User stories. Keep implementation (custom alias canary, alarm rollback, local tests) separate from live Beta/Gamma/Prod, failed-gate, operational rollback and cleanup evidence. Record the CodeDeploy service substitution in the report. An open pull request belongs in Review; account-only checks do not complete live verification.

@@ -7,7 +7,11 @@
     "synth": "cd vshydzai && cdk synth",
     "synth:pipeline": "cd vshydzai && cdk synth -c mode=pipeline",
     "deploy:beta": "cd vshydzai && cdk deploy -c environment=beta",
-    "deploy:pipeline": "cd vshydzai && cdk deploy -c mode=pipeline"
+    "deploy:pipeline": "cd vshydzai && cdk deploy -c mode=pipeline",
+    "synth:alias": "cd vshydzai && cdk synth -c deployment_method=alias",
+    "synth:pipeline:alias": "cd vshydzai && cdk synth -c mode=pipeline -c deployment_method=alias",
+    "deploy:beta:alias": "cd vshydzai && cdk deploy -c environment=beta -c deployment_method=alias",
+    "deploy:pipeline:alias": "cd vshydzai && cdk deploy -c mode=pipeline -c deployment_method=alias"
   },
   "devDependencies": {"@playwright/test": "1.64.0", "aws-cdk": "2.1128.0"}
 }

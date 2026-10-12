@@ -149,3 +149,7 @@ The imported CodeConnections connection and shared CDKToolkit bootstrap are exte
 - [CodeDeploy Lambda deployments](https://docs.aws.amazon.com/cdk/api/v2/python/aws_cdk.aws_codedeploy/LambdaDeploymentGroup.html)
 - [Lambda metrics](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-metrics-types.html)
 - [Removal policies](https://docs.aws.amazon.com/cdk/api/v2/python/aws_cdk/RemovalPolicy.html)
+
+## Deployment without CodeDeploy
+
+An explicit `alias` alternative retains CodePipeline, all three stages and live test gates. CDK/CloudFormation uses native Lambda alias traffic splitting (10% for five minutes), with candidate checks and automatic CloudWatch/EventBridge rollback. Select `npm run deploy:beta:alias` or `npm run deploy:pipeline:alias`; the existing CodeDeploy option is still available. See [setup, recovery and evidence steps](RUNBOOK.md#alternative-codepipeline-with-native-lambda-alias-releases). This implementation is locally tested; actual account service access and live release evidence must be verified.

@@ -31,7 +31,7 @@ from .removal import ProjectRemovalPolicy
 
 class WebHealthPipeline(Stack):
     def __init__(self, scope: Construct, identifier: str, *, connection_arn, repository="Vshydzai/WSU2026",
-                 branch="main", notification_email="", **kwargs):
+                 branch="main", notification_email="", deployment_method="codedeploy", **kwargs):
         super().__init__(scope, identifier, **kwargs)
         # REST API account logging role is shared by all stages in this account/region.
         logging_role = iam.Role(self, "ApiLoggingRole", assumed_by=iam.ServicePrincipal("apigateway.amazonaws.com"),
@@ -57,11 +57,13 @@ class WebHealthPipeline(Stack):
                           "cd ..", "npm run test:dashboard", "npm run synth:pipeline"],
                 env={"CONNECTION_ARN": connection_arn,
                      "DEPLOY_ACCOUNT": self.account, "DEPLOY_REGION": self.region,
-                     "SOURCE_BRANCH": branch, "NOTIFICATION_EMAIL": notification_email},
+                     "SOURCE_BRANCH": branch, "NOTIFICATION_EMAIL": notification_email,
+                     "DEPLOYMENT_METHOD": deployment_method},
                 primary_output_directory="vshydzai/cdk.out"))
         for environment in ("beta", "gamma", "prod"):
             stage = WebHealthStage(self, environment.capitalize(), environment=environment,
-                                   notification_email=notification_email, env=Environment(account=self.account, region=self.region))
+                                   notification_email=notification_email, deployment_method=deployment_method,
+                                   env=Environment(account=self.account, region=self.region))
             app = stage.application
             api_test = pipelines.CodeBuildStep(
                 f"{environment.capitalize()}Tests", input=source,

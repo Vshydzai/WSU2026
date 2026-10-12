@@ -4,8 +4,10 @@ import json
 from pathlib import Path
 
 from aws_cdk import (
+    Annotations,
     Aspects,
     CfnOutput,
+    CustomResource,
     Duration,
     RemovalPolicy,
     Stack,
@@ -46,6 +48,7 @@ from aws_cdk import (
 from aws_cdk import (
     aws_sns_subscriptions as subscriptions,
 )
+from aws_cdk import custom_resources as cr
 from constructs import Construct
 
 from .removal import ProjectRemovalPolicy
@@ -55,12 +58,15 @@ ASSETS = str(Path(__file__).resolve().parents[1] / "lambda_src")
 
 class VshydzaiStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, *, environment="beta",
-                 notification_email="", fault_injection=False, manage_api_logging_role=True, **kwargs):
+                 notification_email="", fault_injection=False, manage_api_logging_role=True,
+                 deployment_method="codedeploy", **kwargs):
         super().__init__(scope, construct_id, **kwargs)
         if environment not in {"beta", "gamma", "prod"}:
             raise ValueError("Use beta, gamma or prod")
         if fault_injection and environment != "beta":
             raise ValueError("Fault injection is supported only in beta")
+        if deployment_method not in {"codedeploy", "alias"}:
+            raise ValueError("deployment_method must be codedeploy or alias")
         prefix = f"WebHealth-{environment}"
 
         def table(identifier, ttl=None):
@@ -92,11 +98,20 @@ class VshydzaiStack(Stack):
         self.api_function = function("Api", "targets_api.lambda_handler")
         self.targets_table.grant_read_data(self.crawler)
         self.targets_table.grant_read_write_data(self.api_function)
-        self.crawler_alias = lambdas.Alias(self, "CrawlerLive", alias_name="live",
-                                          version=self.crawler.current_version)
-        self.api_alias = lambdas.Alias(self, "ApiLive", alias_name="live",
-                                      version=self.api_function.current_version)
-        events.Rule(self, "Schedule", schedule=events.Schedule.rate(Duration.minutes(30)),
+        def live_alias(identifier, target):
+            if deployment_method == "codedeploy":
+                return lambdas.Alias(self, identifier, alias_name="live", version=target.current_version)
+            # The custom resource owns the alias in this mode. CloudFormation must
+            # not update it ahead of the canary or compete with operational rollback.
+            alias = lambdas.Alias.from_alias_attributes(
+                self, identifier, alias_name="live", alias_version=target.current_version)
+            Annotations.of(alias).acknowledge_warning("UnclearLambdaEnvironment",
+                "Permissions for the custom-resource-owned aliases are explicitly defined in this stack")
+            return alias
+
+        self.crawler_alias = live_alias("CrawlerLive", self.crawler)
+        self.api_alias = live_alias("ApiLive", self.api_function)
+        schedule = events.Rule(self, "Schedule", schedule=events.Schedule.rate(Duration.minutes(30)),
                     targets=[event_targets.LambdaFunction(self.crawler_alias)])
 
         access_logs = logs.LogGroup(self, "ApiAccessLogs", log_group_name=f"/webhealth/{environment}/api",
@@ -138,18 +153,19 @@ class VshydzaiStack(Stack):
         topic.add_subscription(subscriptions.LambdaSubscription(logger))
 
         allowed = json.dumps([self.crawler.function_name, self.api_function.function_name])
-        hook = function("DeploymentHook", "deployment_hook.lambda_handler", timeout=120,
-                        extra={"ALLOWED_FUNCTIONS": allowed})
-        traffic = function("CanaryTraffic", "canary_traffic.lambda_handler", timeout=290,
-                           extra={"ALLOWED_FUNCTIONS": allowed})
-        for worker in (hook, traffic):
-            worker.add_to_role_policy(iam.PolicyStatement(actions=["codedeploy:GetDeployment"], resources=["*"]))
-        for target in (self.crawler, self.api_function):
+        if deployment_method == "codedeploy":
+            hook = function("DeploymentHook", "deployment_hook.lambda_handler", timeout=120,
+                            extra={"ALLOWED_FUNCTIONS": allowed})
+            traffic = function("CanaryTraffic", "canary_traffic.lambda_handler", timeout=290,
+                               extra={"ALLOWED_FUNCTIONS": allowed})
             for worker in (hook, traffic):
-                worker.add_to_role_policy(iam.PolicyStatement(actions=["lambda:InvokeFunction"],
-                                                              resources=[target.function_arn + ":*"]))
-            traffic.add_to_role_policy(iam.PolicyStatement(actions=["lambda:GetAlias"],
-                resources=[target.function_arn, target.function_arn + ":live"]))
+                worker.add_to_role_policy(iam.PolicyStatement(actions=["codedeploy:GetDeployment"], resources=["*"]))
+            for target in (self.crawler, self.api_function):
+                for worker in (hook, traffic):
+                    worker.add_to_role_policy(iam.PolicyStatement(actions=["lambda:InvokeFunction"],
+                                                                  resources=[target.function_arn + ":*"]))
+                traffic.add_to_role_policy(iam.PolicyStatement(actions=["lambda:GetAlias"],
+                    resources=[target.function_arn, target.function_arn + ":live"]))
 
         alarms, alarm_map, group_map = [], {}, {}
         dimensions = {"Environment": environment}
@@ -188,41 +204,81 @@ class VshydzaiStack(Stack):
                 operational.append(alarm("ApiServerErrors", metric("ApiServerErrors", "api"), 1))
             for health_alarm in operational:
                 alarm_map[health_alarm.alarm_name] = target.function_name
-            group = codedeploy.LambdaDeploymentGroup(
-                self, f"{label}Deployment", alias=alias,
-                deployment_group_name=f"{prefix}-{label}",
-                deployment_config=codedeploy.LambdaDeploymentConfig.CANARY_10_PERCENT_5_MINUTES,
-                alarms=operational, pre_hook=hook,
-                auto_rollback=codedeploy.AutoRollbackConfig(
-                    failed_deployment=True, stopped_deployment=True, deployment_in_alarm=True))
-            group_map[target.function_name] = {
-                "application": group.application.application_name, "group": group.deployment_group_name}
-            events.Rule(self, f"{label}CanaryStart",
-                        event_pattern=events.EventPattern(
-                            source=["aws.codedeploy"], detail_type=["CodeDeploy Deployment State-change Notification"],
-                            detail={"application": [group.application.application_name],
-                                    "deploymentGroup": [group.deployment_group_name], "state": ["START"]}),
-                        targets=[event_targets.LambdaFunction(traffic)])
-            self.node.add_metadata(f"{label}DeploymentGroup", group.deployment_group_name)
+            if deployment_method == "codedeploy":
+                group = codedeploy.LambdaDeploymentGroup(
+                    self, f"{label}Deployment", alias=alias,
+                    deployment_group_name=f"{prefix}-{label}",
+                    deployment_config=codedeploy.LambdaDeploymentConfig.CANARY_10_PERCENT_5_MINUTES,
+                    alarms=operational, pre_hook=hook,
+                    auto_rollback=codedeploy.AutoRollbackConfig(
+                        failed_deployment=True, stopped_deployment=True, deployment_in_alarm=True))
+                group_map[target.function_name] = {
+                    "application": group.application.application_name, "group": group.deployment_group_name}
+                events.Rule(self, f"{label}CanaryStart",
+                            event_pattern=events.EventPattern(
+                                source=["aws.codedeploy"], detail_type=["CodeDeploy Deployment State-change Notification"],
+                                detail={"application": [group.application.application_name],
+                                        "deploymentGroup": [group.deployment_group_name], "state": ["START"]}),
+                            targets=[event_targets.LambdaFunction(traffic)])
+                self.node.add_metadata(f"{label}DeploymentGroup", group.deployment_group_name)
 
         manager = function("ReleaseManager", "release_manager.lambda_handler", timeout=30, extra={
             "RELEASE_TABLE_NAME": release_table.table_name, "ALLOWED_FUNCTIONS": allowed,
-            "ALARM_FUNCTION_MAP": json.dumps(alarm_map), "FUNCTION_GROUP_MAP": json.dumps(group_map)})
+            "ALARM_FUNCTION_MAP": json.dumps(alarm_map), "FUNCTION_GROUP_MAP": json.dumps(group_map),
+            "DEPLOYMENT_METHOD": deployment_method})
         release_table.grant_read_write_data(manager)
         manager.add_to_role_policy(iam.PolicyStatement(
-            actions=["codedeploy:GetDeployment", "codedeploy:ListDeployments", "cloudwatch:DescribeAlarms"],
+            actions=["cloudwatch:DescribeAlarms"] + (["codedeploy:GetDeployment", "codedeploy:ListDeployments"]
+                     if deployment_method == "codedeploy" else []),
             resources=["*"]))
         for target in (self.crawler, self.api_function):
             manager.add_to_role_policy(iam.PolicyStatement(actions=["lambda:GetAlias", "lambda:UpdateAlias"],
                                                            resources=[target.function_arn, target.function_arn + ":live"]))
-        events.Rule(self, "CompletedRelease", event_pattern=events.EventPattern(
-            source=["aws.codedeploy"], detail_type=["CodeDeploy Deployment State-change Notification"],
-            detail={"application": [value["application"] for value in group_map.values()], "state": ["SUCCESS"]}),
-            targets=[event_targets.LambdaFunction(manager)])
-        events.Rule(self, "OperationalRollback", event_pattern=events.EventPattern(
+        if deployment_method == "codedeploy":
+            events.Rule(self, "CompletedRelease", event_pattern=events.EventPattern(
+                source=["aws.codedeploy"], detail_type=["CodeDeploy Deployment State-change Notification"],
+                detail={"application": [value["application"] for value in group_map.values()], "state": ["SUCCESS"]}),
+                targets=[event_targets.LambdaFunction(manager)])
+        rollback_rule = events.Rule(self, "OperationalRollback", event_pattern=events.EventPattern(
             source=["aws.cloudwatch"], detail_type=["CloudWatch Alarm State Change"],
             detail={"alarmName": list(alarm_map), "state": {"value": ["ALARM"]}}),
             targets=[event_targets.LambdaFunction(manager)])
+
+        if deployment_method == "alias":
+            release = function("AliasRelease", "alias_release.lambda_handler", timeout=600, extra={
+                "RELEASE_TABLE_NAME": release_table.table_name, "ALLOWED_FUNCTIONS": allowed})
+            release_table.grant_read_write_data(release)
+            release.add_to_role_policy(iam.PolicyStatement(actions=["cloudwatch:DescribeAlarms"], resources=["*"]))
+            for target in (self.crawler, self.api_function):
+                release.add_to_role_policy(iam.PolicyStatement(
+                    actions=["lambda:GetAlias", "lambda:CreateAlias", "lambda:UpdateAlias", "lambda:DeleteAlias"],
+                    resources=[target.function_arn, target.function_arn + ":live"]))
+                release.add_to_role_policy(iam.PolicyStatement(actions=["lambda:InvokeFunction"],
+                                                              resources=[target.function_arn + ":*"]))
+            provider_logs = logs.LogGroup(self, "AliasProviderLogs", retention=logs.RetentionDays.ONE_WEEK,
+                                          removal_policy=RemovalPolicy.DESTROY)
+            provider = cr.Provider(self, "AliasProvider", on_event_handler=release,
+                                   provider_function_name=f"{prefix}-AliasProvider", log_group=provider_logs)
+            # The provider cannot call a missing alias on initial creation. Creating
+            # the API integration and schedule after both releases avoids that race.
+            for label, target in (("Crawler", self.crawler), ("Api", self.api_function)):
+                resource = CustomResource(self, f"{label}AliasRelease", service_token=provider.service_token,
+                    resource_type="Custom::WebHealthAliasRelease", properties={
+                        "FunctionName": target.function_name, "CandidateVersion": target.current_version.version,
+                        "AlarmNames": [name for name, function_name in alarm_map.items()
+                                       if function_name == target.function_name],
+                        "CanarySeconds": 300})
+                resource.node.add_dependency(rollback_rule, manager)
+                for health_alarm in alarms:
+                    resource.node.add_dependency(health_alarm)
+                schedule.node.add_dependency(resource)
+                self.api.node.add_dependency(resource)
+            lambdas.CfnPermission(self, "CrawlerAliasSchedulePermission", action="lambda:InvokeFunction",
+                function_name=self.crawler.function_arn + ":live", principal="events.amazonaws.com",
+                source_arn=schedule.rule_arn)
+            lambdas.CfnPermission(self, "ApiAliasGatewayPermission", action="lambda:InvokeFunction",
+                function_name=self.api_function.function_arn + ":live", principal="apigateway.amazonaws.com",
+                source_arn=self.api.arn_for_execute_api("*", "/*", "*"))
 
         # Website failures trigger monitoring alerts, independently of release-health alarms.
         alarm("TargetsUnavailable", cw.Metric(
@@ -269,4 +325,5 @@ class VshydzaiStack(Stack):
         self.alarm_table_output = CfnOutput(self, "AlarmTable", value=self.alarm_table.table_name)
         CfnOutput(self, "ReleaseTable", value=release_table.table_name)
         CfnOutput(self, "DashboardName", value=dashboard.dashboard_name)
+        CfnOutput(self, "DeploymentMethod", value=deployment_method)
         Aspects.of(self).add(ProjectRemovalPolicy())
