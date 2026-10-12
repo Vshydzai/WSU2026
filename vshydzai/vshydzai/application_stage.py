@@ -5,8 +5,10 @@ from .vshydzai_stack import VshydzaiStack
 
 
 class WebHealthStage(Stage):
-    def __init__(self, scope: Construct, identifier: str, *, environment, notification_email="", **kwargs):
+    def __init__(self, scope: Construct, identifier: str, *, environment, notification_email="",
+                 deployment_method="codedeploy", **kwargs):
         super().__init__(scope, identifier, **kwargs)
         self.application = VshydzaiStack(
             self, "Application", stack_name=f"WebHealth-{environment}",
-            environment=environment, notification_email=notification_email, manage_api_logging_role=False)
+            environment=environment, notification_email=notification_email,
+            deployment_method=deployment_method, manage_api_logging_role=False)

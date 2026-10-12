@@ -52,6 +52,18 @@ jobs:
         env:
           CONNECTION_ARN: arn:aws:codestar-connections:us-east-2:111111111111:connection/00000000-0000-0000-0000-000000000000
         run: npm run synth:pipeline -- --quiet --no-lookups
+      - name: Synthesize alternative deployment environments
+        env:
+          DEPLOY_REGION: ap-southeast-2
+        run: |
+          npm run synth:alias -- -c environment=beta --quiet --no-lookups
+          npm run synth:alias -- -c environment=gamma --quiet --no-lookups
+          npm run synth:alias -- -c environment=prod --quiet --no-lookups
+      - name: Synthesize the alternative three-stage pipeline
+        env:
+          DEPLOY_REGION: ap-southeast-2
+          CONNECTION_ARN: arn:aws:codeconnections:ap-southeast-2:111111111111:connection/00000000-0000-0000-0000-000000000000
+        run: npm run synth:pipeline:alias -- --quiet --no-lookups
       - uses: actions/upload-artifact@v4
         if: always()
         with:

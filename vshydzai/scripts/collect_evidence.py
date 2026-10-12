@@ -45,7 +45,6 @@ def collect(session, account, region, stack, hours=2, now=None):
         "name": stack, "stack_status": record["StackStatus"], "outputs": outputs, "resources": inventory}}}
     functions = client(session, "lambda")
     cloudwatch = client(session, "cloudwatch")
-    deploy = client(session, "codedeploy")
     start = now - timedelta(hours=hours)
     for resource in inventory:
         name, kind = resource.get("PhysicalResourceId"), resource["ResourceType"]
@@ -78,7 +77,10 @@ def collect(session, account, region, stack, hours=2, now=None):
         def deployments(manager=manager):
             import json
             config = functions.get_function_configuration(FunctionName=manager)
+            if config.get("Environment", {}).get("Variables", {}).get("DEPLOYMENT_METHOD") == "alias":
+                return {"method": "alias", "note": "Canary and rollback versions are in release_history"}
             mapping = json.loads(config.get("Environment", {}).get("Variables", {}).get("FUNCTION_GROUP_MAP", "{}"))
+            deploy = client(session, "codedeploy")
             result = []
             for group in mapping.values():
                 ids = deploy.list_deployments(applicationName=group["application"],

@@ -164,3 +164,111 @@ Preview does not delete anything and has `verified: false`. `--execute` checks y
 The pipeline stack has an artifact bucket with automatic object deletion. Application log groups and tables use explicit destruction policies. Function versions use explicit retention between releases and disappear when their parent function is deleted. Confirm the cleanup command's verification result in addition to CloudFormation deletion status.
 
 Review the shared CDKToolkit bucket/ECR assets and imported CodeConnections separately when this account is dedicated to the project. Those prerequisites are outside the project stacks. Archive useful screenshots and test output before destroying a working deployment.
+
+## Alternative: CodePipeline with native Lambda alias releases
+
+When CodeDeploy is unavailable, keep CodePipeline and select `deployment_method=alias`.
+This explicitly substitutes the deployment service named in the brief; it does not claim
+that CodeDeploy was used. CodeBuild, CodeConnections, IAM, and the application services
+must still be available in the account. Do not upgrade the account plan automatically.
+
+Use Sydney (`ap-southeast-2`) for this alternative. In VS Code PowerShell:
+
+~~~powershell
+$env:AWS_PROFILE = "wsu2026"
+$env:DEPLOY_ACCOUNT = aws sts get-caller-identity --query Account --output text
+$env:DEPLOY_REGION = "ap-southeast-2"
+$env:AWS_DEFAULT_REGION = "ap-southeast-2"
+$env:DEPLOYMENT_METHOD = "alias"
+aws sts get-caller-identity --no-cli-pager
+aws codebuild list-projects --no-cli-pager
+~~~
+
+Activate a local Python 3.12 environment and install the pinned requirements and
+`npm ci` as usual. There is no need to repeat the existing Sydney CDK bootstrap.
+
+~~~powershell
+python vshydzai/scripts/preflight.py --output vshydzai/test-results/preflight.json
+npm run synth:alias -- -c environment=beta --quiet --no-lookups
+npm run deploy:beta:alias
+python vshydzai/scripts/seed_targets.py --stack WebHealth-beta
+python vshydzai/scripts/run_live_tests.py --stack WebHealth-beta
+python vshydzai/scripts/serve_dashboard.py --stack WebHealth-beta
+~~~
+
+Stop if prerequisites, synthesis or deployment fail. An empty CodePipeline listing
+proves list access only, not CodeBuild, connection authorization or deployment access.
+
+Before moving from standalone Beta to the pipeline, archive its evidence and remove
+the standalone stack with the project cleanup tool. Then create an AVAILABLE GitHub
+connection in Sydney, set `$env:CONNECTION_ARN` to its ARN, and run:
+
+~~~powershell
+$env:SOURCE_BRANCH = "main"
+python vshydzai/scripts/preflight.py --pipeline
+npm run synth:pipeline:alias -- --quiet --no-lookups
+npm run deploy:pipeline:alias
+~~~
+
+The pipeline preserves `DEPLOYMENT_METHOD=alias` in its synthesis environment during
+self-mutation. Build tests, Beta/Gamma/Prod integration blockers and production approval
+remain. Each application's custom CloudFormation resource owns the `live` alias, so
+CloudFormation does not switch it ahead of the canary. It checks the candidate, records
+the version pair, shifts 10% traffic for five minutes, invokes both the candidate and
+live alias, checks operational alarms, then promotes with a fresh alias revision guard.
+A failed probe/active alarm restores the old version and fails the deployment action.
+Initial creation tests the candidate without traffic splitting because no old version
+exists. A first release has no rollback target.
+
+After a completed release, CloudWatch ALARM events reach ReleaseManager via EventBridge.
+The manager rechecks the alarm and recorded version pair, then restores the previous
+version. It also handles the 10% weighted canary; the canary worker cannot promote after
+that rollback. Website availability alerts remain notification-only. Avoid concurrent
+manual releases; the revision/conditional-write guards are not a distributed lock.
+
+For a Beta canary failure exercise after establishing a healthy baseline:
+
+~~~powershell
+npm run deploy:beta:alias -- -c fault_injection=true
+~~~
+
+The deliberate crawler fault creates a real Lambda error and probe failure metric.
+The deployment should fail and retain the old alias. CloudFormation may roll back both
+functions if either resource fails. Return to the healthy configuration with
+`npm run deploy:beta:alias`. Use pipeline-owned releases for the full pipeline evidence;
+a standalone command alone is not proof of a pipeline stage.
+
+For an operational alarm exercise, first have two healthy versions in ReleaseState.
+An intentionally malformed direct invocation (for example JSON `null`) can generate a
+real Lambda error on `live`. Label this as an injected invocation fault, not a detected
+code regression. Observe the actual CloudWatch ALARM, ReleaseManager logs, previous
+alias restoration, and then a healthy normal invocation. Never use manually set alarm
+states as evidence of fault detection.
+
+`collect_evidence.py` does not call CodeDeploy in alias mode. It records the method,
+aliases, ReleaseState, alarm history, pipeline and metrics. Capture these before/after
+the exercise and archive provider logs before teardown.
+
+### Failed initial CodeDeploy stack
+
+The existing `WebHealth-beta` failed stack must be removed before the alternative can
+use that name. Save its events/resource listing first. Request ordinary deletion:
+
+~~~powershell
+aws cloudformation delete-stack --stack-name WebHealth-beta --profile wsu2026 --region ap-southeast-2
+aws cloudformation wait stack-delete-complete --stack-name WebHealth-beta --profile wsu2026 --region ap-southeast-2
+~~~
+
+If deletion fails, inspect its status and resources again. Only when it is DELETE_FAILED,
+and the only surviving resources are the two blocked CodeDeploy application entries,
+CloudFormation supports removing the stack while retaining those exact entries:
+
+~~~powershell
+aws cloudformation delete-stack --stack-name WebHealth-beta --retain-resources ApiDeploymentApplication70337E5A CrawlerDeploymentApplication3497CC5D --profile wsu2026 --region ap-southeast-2
+aws cloudformation wait stack-delete-complete --stack-name WebHealth-beta --profile wsu2026 --region ap-southeast-2
+~~~
+
+Retention removes CloudFormation ownership; it does not prove those CodeDeploy applications
+are deleted or even accessible. Keep their physical IDs in the cleanup evidence and leave
+that service verification unresolved until access or AWS account support can confirm it.
+Do not describe this recovery as full resource teardown. Do not retain unrelated resources.

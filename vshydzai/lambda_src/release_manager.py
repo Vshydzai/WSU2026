@@ -17,13 +17,13 @@ def rollback(alarm_name, table, functions, deploy, cloudwatch):
     alarms = cloudwatch.describe_alarms(AlarmNames=[alarm_name]).get("MetricAlarms", [])
     if not alarms or alarms[0]["StateValue"] != "ALARM":
         return {"action": "alarm_recovered"}
-    group = json.loads(os.environ["FUNCTION_GROUP_MAP"])[function]
-    active = deploy.list_deployments(applicationName=group["application"],
-                                    deploymentGroupName=group["group"],
-                                    includeOnlyStatuses=["Created", "Queued", "InProgress",
-                                                         "Ready", "Baking"])
-    if active.get("deployments"):
-        return {"action": "codedeploy_owns_active_release"}
+    if deploy is not None:
+        group = json.loads(os.environ["FUNCTION_GROUP_MAP"])[function]
+        active = deploy.list_deployments(applicationName=group["application"],
+                                        deploymentGroupName=group["group"],
+                                        includeOnlyStatuses=["Created", "Queued", "InProgress", "Ready", "Baking"])
+        if active.get("deployments"):
+            return {"action": "codedeploy_owns_active_release"}
     item = table.get_item(Key={"id": function}, ConsistentRead=True).get("Item")
     if not item or item.get("previous_version") == item.get("current_version"):
         return {"action": "no_previous_version"}
@@ -31,8 +31,11 @@ def rollback(alarm_name, table, functions, deploy, cloudwatch):
                for key in ("previous_version", "current_version")):
         return {"action": "invalid_release_state"}
     alias = functions.get_alias(FunctionName=function, Name="live")
-    if alias["FunctionVersion"] != item["current_version"] or alias.get(
-            "RoutingConfig", {}).get("AdditionalVersionWeights"):
+    weights = alias.get("RoutingConfig", {}).get("AdditionalVersionWeights", {})
+    active_canary = (deploy is None and item.get("release_state") == "canary"
+                     and alias["FunctionVersion"] == item["previous_version"]
+                     and weights == {item["current_version"]: 0.1})
+    if not active_canary and (alias["FunctionVersion"] != item["current_version"] or weights):
         return {"action": "alias_already_changed"}
     try:
         functions.update_alias(FunctionName=function, Name="live", RevisionId=alias["RevisionId"],
@@ -44,11 +47,12 @@ def rollback(alarm_name, table, functions, deploy, cloudwatch):
         raise
     try:
         table.update_item(Key={"id": function},
-                          UpdateExpression="SET rollback_alarm = :a, rolled_back_at = :t",
+                          UpdateExpression="SET rollback_alarm = :a, rolled_back_at = :t, release_state = :s",
                           ConditionExpression="current_version = :c AND previous_version = :p",
                           ExpressionAttributeValues={":a": alarm_name, ":c": item["current_version"],
                                                      ":p": item["previous_version"],
-                                                     ":t": datetime.now(timezone.utc).isoformat()})
+                                                     ":t": datetime.now(timezone.utc).isoformat(),
+                                                     ":s": "rolled_back"})
     except ClientError as exc:
         if exc.response["Error"]["Code"] != "ConditionalCheckFailedException":
             raise
@@ -59,12 +63,16 @@ def rollback(alarm_name, table, functions, deploy, cloudwatch):
 
 def lambda_handler(event, context):
     table = boto3.resource("dynamodb").Table(os.environ["RELEASE_TABLE_NAME"])
-    functions, deploy = boto3.client("lambda"), boto3.client("codedeploy")
+    functions = boto3.client("lambda")
+    deploy = (boto3.client("codedeploy") if os.environ.get("DEPLOYMENT_METHOD", "codedeploy")
+              == "codedeploy" else None)
     if event.get("source") == "aws.cloudwatch":
         result = rollback(event["detail"]["alarmName"], table, functions, deploy,
                           boto3.client("cloudwatch"))
         print(json.dumps(result))
         return result
+    if deploy is None:
+        return {"action": "ignored"}
     info = deploy.get_deployment(deploymentId=event["detail"]["deploymentId"])["deploymentInfo"]
     if info["status"] != "Succeeded" or info.get("rollbackInfo", {}).get("rollbackTriggeringDeploymentId"):
         return {"action": "ignored"}

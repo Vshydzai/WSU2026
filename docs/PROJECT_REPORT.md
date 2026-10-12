@@ -54,6 +54,23 @@ CodeDeploy uses a five-minute, ten-percent canary shift. A pre-traffic hook chec
 
 Deployment alarms can stop and roll back an active release. After success, ReleaseManager stores the version pair with millisecond completion ordering and rejects older/duplicate events. A later operational alarm can restore the prior version if the alarm remains active, no CodeDeploy deployment is running and the alias still matches the recorded current version. RevisionId guards reject stale alias updates; conditional writes preserve concurrently changed history. These controls reduce races but are not a distributed lock between services. Successful CodeDeploy rollback events do not record the failed version as a future recovery target.
 
+### Alternative deployment without CodeDeploy
+
+The `alias` deployment option substitutes native Lambda alias control for CodeDeploy when
+account service access is restricted. CodePipeline and CodeBuild still build, test and
+promote Beta, Gamma and Prod in one region. A CloudFormation custom resource owns each
+live alias, records current/previous versions before exposing a candidate, performs the
+same five-minute ten-percent traffic shift and probes, and checks operational alarms.
+Its failure restores the old version and blocks the deployment stage. The existing
+ReleaseManager independently restores the previous version on a later CloudWatch ALARM,
+including a canary that is still active. Revision and conditional-state checks prevent
+that rollback from being undone by an older promotion attempt.
+
+Initial deployment has no earlier version to restore. Subsequent live canary and
+operational rollback evidence is still required. This is an explicitly documented
+alternative to the named CodeDeploy service, not evidence that CodeDeploy ran. The
+original CodeDeploy option remains available through the default deployment method.
+
 ## Testing
 
 Unit tests cover validation, HTTP behaviour, DNS checks, transport pinning, conditional storage operations, timing and release decisions. Functional tests exercise complete API/crawler flows using mocked AWS and HTTP boundaries. Infrastructure tests verify the routes, cadence, permissions, aliases, removal policies and stage blockers.
@@ -101,3 +118,7 @@ Amazon Web Services. Configure Lambda function timeout. https://docs.aws.amazon.
 Amazon Web Services. CDK removal policies. https://docs.aws.amazon.com/cdk/api/v2/python/aws_cdk/RemovalPolicy.html
 
 GitHub. About protected branches. https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches
+
+Amazon Web Services. Implement Lambda canary deployments using a weighted alias. https://docs.aws.amazon.com/lambda/latest/dg/configuring-alias-routing.html
+
+Amazon Web Services. CloudWatch events delivered to EventBridge. https://docs.aws.amazon.com/eventbridge/latest/ref/events-ref-cloudwatch.html
