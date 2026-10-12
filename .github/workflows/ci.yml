@@ -35,6 +35,10 @@ jobs:
       - name: Lint
         run: ruff check vshydzai
       - name: Local tests and infrastructure assertions
+        env:
+          DEPLOYMENT_METHOD: alias
+          DEPLOY_REGION: ap-southeast-2
+          CONNECTION_ARN: arn:aws:codeconnections:ap-southeast-2:111111111111:connection/00000000-0000-0000-0000-000000000000
         working-directory: vshydzai
         run: pytest -m "not integration" --cov=lambda_src --cov=scripts --cov-fail-under=85 --cov-report=term-missing --cov-report=json:test-results/coverage.json --junitxml=test-results/local.xml
       - name: Install Chromium for browser checks

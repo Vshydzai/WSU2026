@@ -1,4 +1,6 @@
 -r requirements.txt
+# Required by browser-based `aws login` profiles on developer machines.
+boto3[crt]==1.42.0
 pytest==8.4.2
 pytest-cov==7.0.0
 moto[dynamodb,sns]==5.1.18

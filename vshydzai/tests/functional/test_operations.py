@@ -20,7 +20,7 @@ def test_preflight_command_writes_passed_read_only_receipt(monkeypatch, tmp_path
     session.client.side_effect = lambda service, **kwargs: {"cloudformation": cfn, "codeconnections": connections}[service]
     monkeypatch.setattr(preflight, "checked_session", lambda account, region: session)
     output = tmp_path / "preflight.json"
-    assert preflight.main(["--account", ACCOUNT, "--pipeline", "--connection",
+    assert preflight.main(["--account", ACCOUNT, "--region", REGION, "--pipeline", "--connection",
                           f"arn:aws:codeconnections:{REGION}:{ACCOUNT}:connection/test", "--output", str(output)]) == 0
     report = json.loads(output.read_text())
     assert report["ok"] and len(report["checks"]) == 2

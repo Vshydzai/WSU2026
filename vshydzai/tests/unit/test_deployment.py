@@ -10,6 +10,13 @@ import release_manager
 from botocore.exceptions import ClientError, ReadTimeoutError
 
 
+@pytest.fixture(autouse=True)
+def codedeploy_test_mode(monkeypatch):
+    # These tests exercise the CodeDeploy implementation even when CodeBuild is
+    # synthesizing the alias alternative. Alias tests set their own mode.
+    monkeypatch.setenv("DEPLOYMENT_METHOD", "codedeploy")
+
+
 def deployment(status="Succeeded"):
     return {"status": status, "deploymentId": "d-test", "applicationName": "app", "deploymentGroupName": "group",
             "completeTime": datetime.now(timezone.utc),
